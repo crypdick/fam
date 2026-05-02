@@ -7,7 +7,6 @@ from datetime import date
 
 from scripts.lib.person import Person
 
-
 _LOGGED_CONTACTS_HEADING = re.compile(r"^##\s+Logged contacts\s*$", re.MULTILINE)
 _NEXT_HEADING = re.compile(r"^##\s+", re.MULTILINE)
 _BULLET_RE = re.compile(r"^\s*-\s+(\d{4}-\d{2}-\d{2})\s*[—–-]\s*(.*?)\s*$")

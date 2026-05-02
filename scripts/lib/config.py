@@ -12,7 +12,6 @@ from pathlib import Path
 
 import yaml
 
-
 CIRCLES_FILENAME = "fam-circles.md"
 _YAML_BLOCK_RE = re.compile(r"```yaml\s*\n(.*?)```", re.DOTALL)
 

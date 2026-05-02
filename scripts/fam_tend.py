@@ -17,7 +17,6 @@ from pathlib import Path
 
 from scripts.lib import person, vault
 
-
 _DATE_PREFIX_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})")
 _LOGGED_HEADING = "## Logged contacts"
 _OTHER_HEADING = "## Other references"
@@ -107,7 +106,9 @@ def tend(*, person_name: str | None = None) -> list[TendResult]:
                 added_other.append(link_target)
         loaded.body = body
         person.write(loaded)
-        results.append(TendResult(person=loaded.name, added_logged=added_logged, added_other=added_other))
+        results.append(
+            TendResult(person=loaded.name, added_logged=added_logged, added_other=added_other)
+        )
     return results
 
 

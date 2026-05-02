@@ -1,10 +1,10 @@
 """Preflight + postflight validators."""
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterator
 
 from scripts.lib import config as config_mod
 from scripts.lib import person as person_mod

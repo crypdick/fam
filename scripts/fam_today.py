@@ -79,7 +79,10 @@ def _finite(s: float) -> float:
 
 
 def _format_table(rows: list[Row]) -> str:
-    header = f"{'SCORE':>6}  {'CIRCLE':<8}  {'LAST_CONTACTED':<14}  {'DAYS':>4}  {'DAYS_OVERDUE':>12}  PATH"
+    header = (
+        f"{'SCORE':>6}  {'CIRCLE':<8}  {'LAST_CONTACTED':<14}"
+        f"  {'DAYS':>4}  {'DAYS_OVERDUE':>12}  PATH"
+    )
     out = [header]
     for r in rows:
         score_str = "inf" if r.score == float("inf") else f"{r.score:6.2f}"

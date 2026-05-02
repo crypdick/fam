@@ -41,7 +41,9 @@ def test_today_all_includes_below_threshold(mock_root, vault_root: Path) -> None
 def test_today_circle_filter(mock_root, vault_root: Path) -> None:
     mock_root.return_value = vault_root
     from scripts import fam_today
-    rows = fam_today.compute_rows(today=date(2026, 5, 15), include_below_threshold=True, circle="orbit")
+    rows = fam_today.compute_rows(
+        today=date(2026, 5, 15), include_below_threshold=True, circle="orbit"
+    )
     assert {r.name for r in rows} == {"Dan"}
 
 
@@ -54,7 +56,9 @@ def test_today_json_output_has_required_keys(mock_root, vault_root: Path, capsys
     payload = json.loads(captured.out)
     assert payload  # non-empty
     row = payload[0]
-    assert {"name", "circle", "last_contacted", "days", "days_overdue", "score", "path"} <= row.keys()
+    assert (
+        {"name", "circle", "last_contacted", "days", "days_overdue", "score", "path"} <= row.keys()
+    )
 
 
 @patch("scripts.lib.vault.get_vault_root")

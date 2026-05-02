@@ -51,7 +51,9 @@ def test_user_namespace_passes_through(vault_root: Path) -> None:
 
 def test_write_roundtrips_extra_fields(tmp_path: Path) -> None:
     src = tmp_path / "@Foo.md"
-    src.write_text("---\ncircle: close\nprofession: dev\n---\n\n## Logged contacts\n- 2026-04-01 — hi\n")
+    src.write_text(
+        "---\ncircle: close\nprofession: dev\n---\n\n## Logged contacts\n- 2026-04-01 — hi\n"
+    )
     p = person.load(src)
     person.write(p)
     text = src.read_text()

@@ -9,7 +9,6 @@ import pytest
 from scripts.lib import config, score
 from scripts.lib.person import Person
 
-
 TODAY = date(2026, 5, 1)
 
 

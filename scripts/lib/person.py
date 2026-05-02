@@ -13,7 +13,6 @@ from typing import Any
 
 import frontmatter
 
-
 CIRCLES = ("passive", "inner", "close", "orbit", "distant")
 FAM_FIELDS = (
     "circle",
@@ -55,7 +54,7 @@ def _coerce_date(value: Any, file: Path, field_name: str) -> date | None:
 
 
 def load(path: Path) -> Person:
-    post = frontmatter.load(path)
+    post = frontmatter.load(str(path))
     fm = dict(post.metadata)
     name = path.stem.lstrip("@")
     circle = fm.pop("circle", None)
