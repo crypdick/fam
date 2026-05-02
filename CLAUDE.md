@@ -1,34 +1,36 @@
 # fam — agent rules
 
-This repo is a Claude Code plugin: a personal CRM driven from the agent.
+This repo is a Claude Code plugin: a personal CRM driven by an agent on top of plain-markdown person notes inside an Obsidian vault.
 
 ## Where the design lives
 
 `<vault>/wiki/People/plans/2026-05-01-fam-design.md`
+`<vault>/wiki/People/plans/2026-05-02-fam-implementation.md`
 
-Read it before making non-trivial changes. It owns the schema, the score model, and the command surface.
+Read before non-trivial changes. They own the schema, the score model, and the command surface.
 
-## Vault conventions
+## Conventions
 
-- Vault: `/home/ricardo/Documents/obsidian/`. Vault name (for `obsidian` CLI): `obsidian`.
-- People notes: `wiki/People/@<Name>.md`.
-- Meetings: `Journal/Meetings/<YYYY-MM-DD> Meeting <stuff>.md`. To associate a person, body wikilink `[[@Name]]`.
-- Templater template: `Templates/Inputs/person_template.md`.
-- Circle config: `wiki/People/circles.md` (YAML inside a fenced code block in the body).
-
-## Obsidian CLI
-
-- Always pass `vault="obsidian"`. Default may resolve to a stale registration.
-- Never pass `--help` after a subcommand — destructive subcommands silently act on the active editor file.
-- Verify Obsidian is running before issuing CLI calls (`obsidian version`); launch via `xdg-open obsidian://` if not.
+- People = `@<Name>.md` anywhere in vault. No `wiki/People/` requirement.
+- Config = `fam-circles.md` (unique filename) anywhere in vault.
+- Source of truth for contact dates = bullets under `## Logged contacts`.
+- Non-meeting mentions = bullets under `## Other references`.
+- `obsidian` CLI is duck-typed — call it; if it fails, surface the error.
+- All `obsidian` CLI calls go through `lib/vault.py` which auto-injects `vault=$FAM_VAULT_NAME` if set.
 
 ## Architecture rules
 
-- Scripts only encode cross-vault aggregation. Per-person CRUD is direct file editing.
-- Every script wraps its work in `lib/validate.guard()` (preflight + postflight).
-- `lib/vault.py` auto-injects `vault="obsidian"` for every `obsidian` CLI call.
-- Pure-derived `last_contacted` — never store it in person frontmatter.
+- Scripts encode only cross-vault aggregation. Per-person CRUD is direct file editing.
+- Every mutating script wraps work in `lib/validate.guard()` (preflight + postflight).
+- Pure-derived `last_contacted` from `## Logged contacts`. Never store it in frontmatter.
+- Plugin owns only the `fam`-namespace fields. User-namespace frontmatter passes through.
 
 ## Out of scope (MVP)
 
 Channel send/read, channel-derived `last_contacted`, Nextcloud watcher, Bases generation, birthdays, concurrency/locking, multi-vault. See spec.
+
+## Tests
+
+- `uv run pytest` runs all unit + light integration tests.
+- Tests use `tests/fixtures/vault/` (synthetic, no real names). Mutating tests copy via `vault_root` conftest fixture.
+- One integration marker (`@pytest.mark.integration`) for tests that hit the real `obsidian` CLI.
