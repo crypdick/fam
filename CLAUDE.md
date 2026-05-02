@@ -1,10 +1,10 @@
-# prm-md — agent rules
+# fam — agent rules
 
 This repo is a Claude Code plugin: a personal CRM driven from the agent.
 
 ## Where the design lives
 
-`<vault>/wiki/People/plans/2026-05-01-prm-md-design.md`
+`<vault>/wiki/People/plans/2026-05-01-fam-design.md`
 
 Read it before making non-trivial changes. It owns the schema, the score model, and the command surface.
 

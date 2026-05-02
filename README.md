@@ -1,4 +1,4 @@
-# prm-md
+# fam
 
 Personal CRM stored as plain markdown inside an Obsidian vault. Distributed as a Claude Code plugin: a skill, helper scripts, and slash commands the agent uses to maintain relationships on your behalf.
 
@@ -11,7 +11,7 @@ Design phase. Implementation has not started.
 Design spec lives in the Obsidian vault, not in this repo:
 
 ```
-<vault>/wiki/People/plans/2026-05-01-prm-md-design.md
+<vault>/wiki/People/plans/2026-05-01-fam-design.md
 ```
 
 Reasoning: the design closely shapes vault conventions (folder layout, frontmatter schema, Templater template). It belongs alongside the people it describes.
@@ -24,10 +24,10 @@ The substrate for an agent acting as a relationship coach — proactively nudgin
 
 ```
 .claude-plugin/plugin.json
-skills/prm-md/SKILL.md
+skills/fam/SKILL.md
 commands/
 scripts/lib/        # shared Python
-scripts/prm-*.py    # entrypoints (uv run)
+scripts/fam-*.py    # entrypoints (uv run)
 tests/fixtures/vault/
 ```
 
