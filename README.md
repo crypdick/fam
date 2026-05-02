@@ -31,8 +31,22 @@ scripts/fam-*.py    # entrypoints (uv run)
 tests/fixtures/vault/
 ```
 
+## Install (development)
+
+```bash
+git clone git@github.com:crypdick/fam ~/src/PERSONAL/fam
+cd ~/src/PERSONAL/fam
+uv sync --extra dev
+```
+
+## Run tests
+
+```bash
+uv run pytest
+```
+
 ## Requirements
 
-- Obsidian + Obsidian CLI (`obsidian`) installed and configured
-- Templater plugin enabled in vault
+- Obsidian + Obsidian CLI (enabled in Settings → General → Command line interface)
+- Templater plugin (only if you want to use the example template)
 - Python 3.11+ with `uv`
