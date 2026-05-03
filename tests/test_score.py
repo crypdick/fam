@@ -16,6 +16,7 @@ TODAY = date(2026, 5, 1)
 def cfg() -> config.Config:
     return config.Config(
         circles={
+            "reference": config.CircleConfig(cadence_days=None, alert_threshold=None),
             "passive": config.CircleConfig(cadence_days=None, alert_threshold=None),
             "inner": config.CircleConfig(cadence_days=7, alert_threshold=-0.2),
             "close": config.CircleConfig(cadence_days=30, alert_threshold=0.0),

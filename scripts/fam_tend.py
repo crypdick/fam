@@ -1,20 +1,28 @@
 """fam-tend: vault gardener for person notes.
 
-For each person, scan backlinks. Dated meeting-style notes feed
-`## Logged contacts`. Other notes feed `## Other references` with a
-TODO placeholder summary the agent fills in later.
+Two passes:
 
-Idempotent: re-running does not duplicate bullets.
+1. **Stub creation** — scan the whole vault for `[[@Name]]` wikilinks with
+   no corresponding `@Name.md`. For each, materialize a stub via the
+   Templater plugin using paths from `fam-circles.md`
+   (`people_folder` + `person_template`).
+2. **Backlink fill** — for each person, scan backlinks. Dated meeting-style
+   notes feed `## Logged contacts`. Other notes feed `## Other references`
+   with a TODO placeholder summary the agent fills in later.
+
+Idempotent: re-running does not duplicate bullets and skips stubs that
+already exist.
 """
 from __future__ import annotations
 
 import argparse
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
+from scripts.lib import config as config_mod
 from scripts.lib import person, vault
 
 _DATE_PREFIX_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})")
@@ -28,6 +36,13 @@ class TendResult:
     person: str
     added_logged: list[str]
     added_other: list[str]
+
+
+@dataclass
+class StubResult:
+    """Outcome of the stub-creation pass."""
+
+    created: list[str] = field(default_factory=list)
 
 
 def _ensure_trailing_newline(body: str) -> str:
@@ -102,8 +117,59 @@ def _classify(path: Path) -> tuple[bool, date | None]:
     return True, d
 
 
-def tend(*, person_name: str | None = None) -> list[TendResult]:
+def _scan_at_wikilinks(vault_root: Path) -> set[str]:
+    """Return the set of `@`-prefixed wikilink basenames mentioned anywhere in
+    the vault. Skips dotfile dirs (`.obsidian`, `.trash`, `.git`, ...).
+    """
+    found: set[str] = set()
+    for md in vault_root.rglob("*.md"):
+        rel = md.relative_to(vault_root)
+        if any(part.startswith(".") for part in rel.parts):
+            continue
+        try:
+            text = md.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for raw in _WIKILINK_RE.findall(text):
+            base = _wikilink_basename(raw)
+            if base.startswith("@"):
+                found.add(base)
+    return found
+
+
+def _create_missing_stubs(vault_root: Path, cfg: config_mod.Config) -> StubResult:
+    """First pass: create person stubs for every unresolved `[[@Name]]` link.
+
+    Requires `people_folder` and `person_template` set in `fam-circles.md`
+    iff any unresolved links are found. Skips silently when the vault has
+    no unresolved links so users without stub-creation needs aren't forced
+    to configure these fields.
+    """
+    existing = {p.stem for p in person.discover(vault_root)}
+    mentioned = _scan_at_wikilinks(vault_root)
+    unresolved = sorted(mentioned - existing)
+    if not unresolved:
+        return StubResult()
+    if not cfg.people_folder or not cfg.person_template:
+        raise config_mod.ConfigError(
+            f"unresolved [[@Name]] links found ({len(unresolved)}); set "
+            "`people_folder` and `person_template` in fam-circles.md to "
+            "enable stub creation, or remove the references."
+        )
+    template = Path(cfg.person_template)
+    folder = Path(cfg.people_folder)
+    created: list[str] = []
+    for name in unresolved:
+        target = folder / f"{name}.md"
+        vault.create_from_template(template=template, file=target)
+        created.append(name)
+    return StubResult(created=created)
+
+
+def tend(*, person_name: str | None = None) -> tuple[StubResult, list[TendResult]]:
     vault_root = vault.get_vault_root()
+    cfg = config_mod.load(vault_root)
+    stubs = _create_missing_stubs(vault_root, cfg) if person_name is None else StubResult()
     targets = [
         p for p in person.discover(vault_root)
         if person_name is None or p.stem.lstrip("@") == person_name
@@ -143,7 +209,7 @@ def tend(*, person_name: str | None = None) -> list[TendResult]:
         results.append(
             TendResult(person=loaded.name, added_logged=added_logged, added_other=added_other)
         )
-    return results
+    return stubs, results
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -151,7 +217,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--person", type=str, default=None)
     parser.add_argument("--dry-run", action="store_true", help="not implemented in MVP; reserved")
     args = parser.parse_args(argv)
-    results = tend(person_name=args.person)
+    stubs, results = tend(person_name=args.person)
+    for name in stubs.created:
+        print(f"created stub: {name}")
     for r in results:
         added = len(r.added_logged) + len(r.added_other)
         if added:

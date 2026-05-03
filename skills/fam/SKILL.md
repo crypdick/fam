@@ -9,7 +9,7 @@ description: Personal CRM. Ranks people due for contact. Reads/writes plain mark
 
 - Obsidian app installed + running
 - `obsidian` CLI enabled: Settings → General → Command line interface
-- (Optional) Templater plugin for `examples/person_template.md`
+- Templater plugin (required when `person_template` set in `fam-circles.md`; `/fam-tend` uses it to materialize stubs)
 
 `obsidian` CLI errors → tell user enable. No preflight check.
 
@@ -20,10 +20,19 @@ description: Personal CRM. Ranks people due for contact. Reads/writes plain mark
 - Logged interactions = bullets under `## Logged contacts` heading in person note
 - Format: `- YYYY-MM-DD — <freetext>`
 
+## Config (`fam-circles.md`)
+
+YAML in fenced ```yaml block. Required: `circles`. Optional (only required when `/fam-tend` finds unresolved `[[@Name]]` links):
+
+- `people_folder: <vault-rel path>` — destination for stubs (e.g. `wiki/People`)
+- `person_template: <vault-rel path>` — Templater template (e.g. `Templates/Inputs/person_template.md`). Must use static YAML frontmatter; `processFrontMatter` inside `<%* %>` races Templater's write pipeline and silently loses fields.
+
 ## Schema (frontmatter)
 
 Required:
-- `circle: passive|inner|close|orbit|distant`
+- `circle: reference|passive|inner|close|orbit|distant`
+  - `reference` = noted person, no contact intent (dead authors, public figures). Excluded from queue.
+  - `passive` = relationship maintained but no cadence. Excluded from queue.
 
 Optional:
 - `cadence_days_override: <int>`
@@ -38,7 +47,7 @@ User's other frontmatter passes through. Don't touch.
 | Command | Use |
 |---------|-----|
 | `/fam-today` | Show ranked queue. Default = above-threshold only. `--all` = everyone overdue. `--circle X` = filter. `--json` = structured. |
-| `/fam-tend` | Garden vault. Backlinks → `## Logged contacts` (dated) + `## Other references` (TODO summaries to fill). Idempotent. |
+| `/fam-tend` | Garden vault. (1) Scan whole vault for unresolved `[[@Name]]` links → create person stubs via Templater. (2) Backlinks → `## Logged contacts` (dated) + `## Other references` (TODO summaries to fill). Idempotent. |
 | `/fam-validate` | Check config + frontmatter. |
 
 ## Logging touches (no script needed)

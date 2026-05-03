@@ -30,6 +30,8 @@ class CircleConfig:
 class Config:
     circles: dict[str, CircleConfig]
     path: Path
+    people_folder: str | None = None
+    person_template: str | None = None
 
 
 def load(vault_root: Path) -> Config:
@@ -61,4 +63,15 @@ def load(vault_root: Path) -> Config:
         )
         for name, cfg in circles_raw.items()
     }
-    return Config(circles=circles, path=path)
+    people_folder = raw.get("people_folder")
+    if people_folder is not None and not isinstance(people_folder, str):
+        raise ConfigError(f"`people_folder` must be a string in {path}")
+    person_template = raw.get("person_template")
+    if person_template is not None and not isinstance(person_template, str):
+        raise ConfigError(f"`person_template` must be a string in {path}")
+    return Config(
+        circles=circles,
+        path=path,
+        people_folder=people_folder,
+        person_template=person_template,
+    )

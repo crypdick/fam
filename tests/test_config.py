@@ -10,7 +10,7 @@ from scripts.lib import config
 
 def test_load_parses_fixture_vault(vault_root: Path) -> None:
     cfg = config.load(vault_root)
-    assert set(cfg.circles) == {"passive", "inner", "close", "orbit", "distant"}
+    assert set(cfg.circles) == {"reference", "passive", "inner", "close", "orbit", "distant"}
     assert cfg.circles["inner"].cadence_days == 7
     assert cfg.circles["inner"].alert_threshold == -0.2
     assert cfg.circles["passive"].cadence_days is None
@@ -48,3 +48,27 @@ def test_circle_config_dataclass_fields() -> None:
     c = config.CircleConfig(cadence_days=7, alert_threshold=-0.2)
     assert c.cadence_days == 7
     assert math.isclose(c.alert_threshold or 0.0, -0.2)
+
+
+def test_load_parses_optional_stub_fields(vault_root: Path) -> None:
+    cfg = config.load(vault_root)
+    assert cfg.people_folder == "People"
+    assert cfg.person_template == "Templates/person_template.md"
+
+
+def test_load_omits_stub_fields_when_absent(vault_root: Path) -> None:
+    (vault_root / "fam-circles.md").write_text(
+        "# fam — circles\n\n```yaml\ncircles:\n"
+        "  passive: {cadence_days: null, alert_threshold: null}\n```\n"
+    )
+    cfg = config.load(vault_root)
+    assert cfg.people_folder is None
+    assert cfg.person_template is None
+
+
+def test_load_rejects_non_string_stub_fields(vault_root: Path) -> None:
+    (vault_root / "fam-circles.md").write_text(
+        "# fam — circles\n\n```yaml\ncircles: {}\npeople_folder: 42\n```\n"
+    )
+    with pytest.raises(config.ConfigError, match="people_folder"):
+        config.load(vault_root)

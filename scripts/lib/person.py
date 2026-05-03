@@ -13,7 +13,7 @@ from typing import Any
 
 import frontmatter
 
-CIRCLES = ("passive", "inner", "close", "orbit", "distant")
+CIRCLES = ("reference", "passive", "inner", "close", "orbit", "distant")
 FAM_FIELDS = (
     "circle",
     "cadence_days_override",

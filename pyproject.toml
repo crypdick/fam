@@ -1,6 +1,6 @@
 [project]
 name = "fam"
-version = "0.1.5"
+version = "0.2.0"
 description = "Personal CRM as a Claude Code plugin backed by Obsidian markdown."
 requires-python = ">=3.13"
 dependencies = [

@@ -87,14 +87,23 @@ The user places `fam-circles.md` wherever fits their vault. A natural location i
 
 ```yaml
 circles:
-  passive:  {cadence_days: null, alert_threshold: null}
-  inner:    {cadence_days: 7,    alert_threshold: -0.2}
-  close:    {cadence_days: 30,   alert_threshold: 0.0}
-  orbit:    {cadence_days: 90,   alert_threshold: 0.2}
-  distant:  {cadence_days: 180,  alert_threshold: 0.5}
+  reference: {cadence_days: null, alert_threshold: null}
+  passive:   {cadence_days: null, alert_threshold: null}
+  inner:     {cadence_days: 7,    alert_threshold: -0.2}
+  close:     {cadence_days: 30,   alert_threshold: 0.0}
+  orbit:     {cadence_days: 90,   alert_threshold: 0.2}
+  distant:   {cadence_days: 180,  alert_threshold: 0.5}
+
+# Optional: only required when /fam-tend finds unresolved [[@Name]] links
+people_folder: wiki/People
+person_template: Templates/Inputs/person_template.md
 ```
 
-`alert_threshold` is the score floor for queue visibility. Lower = surface earlier. `passive` excluded entirely.
+`alert_threshold` is the score floor for queue visibility. Lower = surface earlier. `passive` and `reference` excluded entirely.
+
+`passive` = relationship maintained but no cadence. `reference` = noted person, no contact intent (dead authors, public figures, people you've heard of but won't contact).
+
+`people_folder` and `person_template` together let `fam-tend` materialize stubs for unresolved `[[@Name]]` mentions. Both are vault-relative paths. The template must use static YAML frontmatter — `processFrontMatter` inside `<%* %>` blocks races Templater's own write pipeline and silently loses fields.
 ````
 
 For users with multiple registered Obsidian vaults: pass `FAM_VAULT_NAME=<name>` so `fam`'s `obsidian` CLI calls target the right one. Single-vault users skip this.
@@ -116,7 +125,7 @@ The plugin owns only the `fam`-namespace fields. Users keep any other fields the
 ```yaml
 ---
 # Required
-circle: close                       # passive | inner | close | orbit | distant
+circle: close                       # reference | passive | inner | close | orbit | distant
 
 # Optional
 cadence_days_override: 14           # int > 0; overrides circle default
@@ -138,7 +147,7 @@ contact_channels_ordered_preference: [imessage, signal, email]
 ```
 
 - `circle` is the only required field. All others optional with sensible defaults.
-- Default circle is `passive` — tracked but never on a cadence. New people start here; user upgrades when they decide to actively maintain.
+- Default circle is `passive` — tracked but never on a cadence. New people start here; user upgrades when they decide to actively maintain. `reference` = no relationship intent (notable but not a contact target).
 
 ### `## Logged contacts` — source of truth for contact dates
 
@@ -198,7 +207,7 @@ def in_queue(person, score, config) -> bool:
 
 Sort: score descending. Tie-break: `last_contacted` ascending (longer ago = higher).
 
-`fam-today --all` skips the threshold filter (still excludes passive + snoozed).
+`fam-today --all` skips the threshold filter (still excludes passive/reference + snoozed).
 
 ## Command surface
 
@@ -209,7 +218,7 @@ Minimal. Scripts encode only cross-vault aggregation and gardening. Per-person C
 | Cmd | Purpose | Output |
 |-----|---------|--------|
 | `fam-today` | Ranked queue: read every person's `## Logged contacts`, score, sort, threshold-filter | Table (default) or `--json` |
-| `fam-tend` | Gardener: for each person, scan vault backlinks; write meeting bullets to `## Logged contacts`, summary bullets to `## Other references`. Idempotent. | Per-person change summary |
+| `fam-tend` | Gardener: (1) scan whole vault for unresolved `[[@Name]]` links → materialize stubs via Templater (`people_folder` + `person_template` config); (2) for each person, scan vault backlinks → write meeting bullets to `## Logged contacts`, summary bullets to `## Other references`. Idempotent. | Per-person change summary + created stubs |
 | `fam-validate` | Health check: `fam-circles.md` parses, frontmatter conforms, no orphan refs | Report; exit nonzero on errors |
 
 `fam-today` flags:
@@ -376,7 +385,7 @@ Caveman-terse to save tokens. Covers:
 7. `lib/validate.py`: schema + config validators + `guard()`.
 8. `scripts/fam-validate.py`.
 9. `scripts/fam-today.py` (with `DAYS_OVERDUE` column).
-10. `scripts/fam-tend.py` (gardener — backlink scan, dated → `## Logged contacts`, undated → `## Other references`, idempotent).
+10. `scripts/fam-tend.py` (gardener — stub creation for unresolved `[[@Name]]` links via Templater, then backlink scan, dated → `## Logged contacts`, undated → `## Other references`, idempotent).
 11. `commands/`: slash command frontmatter + bodies.
 12. `skills/fam/SKILL.md`: caveman-terse agent contract.
 13. `examples/person_template.md` and `examples/@Jane Doe.md`.

@@ -43,3 +43,18 @@ def backlinks(target: Path) -> list[Path]:
     """
     out = call(["backlinks", f"path={target.as_posix()}", "format=tsv"])
     return [Path(line) for line in out.splitlines() if line.strip()]
+
+
+def create_from_template(*, template: Path, file: Path) -> None:
+    """Invoke `obsidian templater:create-from-template` to materialize `file`
+    from `template`. Both are vault-relative paths.
+
+    Requires the Templater plugin and its CLI command to be available. The
+    template must use static YAML frontmatter — `processFrontMatter` inside
+    `<%* %>` blocks races Templater's own write pipeline and silently loses.
+    """
+    call([
+        "templater:create-from-template",
+        f"template={template.as_posix()}",
+        f"file={file.as_posix()}",
+    ])
