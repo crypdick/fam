@@ -62,7 +62,7 @@ Run before `/fam-today` if frontmatter looks dusty.
 
 User says "start tracking @Jane Doe, met her at climbing gym, close circle".
 
-1. Create `<vault>/<wherever-people-go>/@Jane Doe.md` (default `wiki/People/`; check existing layout)
+1. Create `<vault>/<wherever-people-go>/@Jane Doe.md` (use the user's existing layout — check if a folder for person notes already exists)
 2. Frontmatter: `circle: close` (+ any other intake info)
 3. Body:
    ```
