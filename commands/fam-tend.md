@@ -3,7 +3,7 @@ description: Run the fam vault gardener (scan backlinks, update sections)
 ---
 
 ```bash
-uv --project ${CLAUDE_PLUGIN_ROOT} run python ${CLAUDE_PLUGIN_ROOT}/scripts/fam_tend.py $ARGUMENTS
+PYTHONPATH=${CLAUDE_PLUGIN_ROOT} uv --project ${CLAUDE_PLUGIN_ROOT} run python ${CLAUDE_PLUGIN_ROOT}/scripts/fam_tend.py $ARGUMENTS
 ```
 
 After tending, look at any `TODO: summarize` lines that were added under
