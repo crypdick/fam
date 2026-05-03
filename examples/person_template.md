@@ -4,7 +4,10 @@ contact_channels_ordered_preference: []
 ---
 <%*
 const title = tp.file.title.startsWith("@") ? tp.file.title : "@" + tp.file.title;
-await tp.file.move("wiki/People/" + title);
+const targetPath = "wiki/People/" + title;
+if (tp.file.path(false) !== targetPath + ".md") {
+  await tp.file.move(targetPath);
+}
 -%>
 
 ## Logged contacts
