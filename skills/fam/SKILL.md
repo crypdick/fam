@@ -81,6 +81,17 @@ See `examples/@Jane Doe.md`.
 1. Read each linked note
 2. Replace `TODO: summarize` with one-sentence reason that person appears
 
+### Stale TODOs — delete, don't ask
+
+`TODO: summarize` lines may also appear **under `## Logged contacts`** (wrong section). Causes:
+
+- Older buggy tend versions routed non-meeting backlinks there
+- Hand-edited drift
+
+When you find a stale TODO, check whether `## Other references` already has a summarized line for the same wikilink (current dedup at `_existing_link_basenames` is body-wide, so re-tend won't re-add a missing summary). If yes → **delete the stale TODO line silently. Do not ask the user.** This is housekeeping, not a decision.
+
+If no matching summary exists, treat the TODO normally: read the linked note, write the summary under `## Other references`, then delete the stale line.
+
 ## Errors
 
 | Error | Fix |
