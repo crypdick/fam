@@ -1,12 +1,16 @@
 """fam-tend: vault gardener for person notes.
 
-Two passes:
+Three passes:
 
 1. **Stub creation** — scan the whole vault for `[[@Name]]` wikilinks with
    no corresponding `@Name.md`. For each, materialize a stub via the
    Templater plugin using paths from `fam-circles.md`
    (`people_folder` + `person_template`).
-2. **Backlink fill** — for each person, scan backlinks. Dated meeting-style
+2. **People-index sync** — append `- [[@Name]] — contact` lines to
+   `<people_folder>/index.md` for any `@*.md` in the folder not already
+   wikilinked from the index. Insertion lands after the last existing
+   `- [[@*]]` bullet (EOF fallback).
+3. **Backlink fill** — for each person, scan backlinks. Dated meeting-style
    notes feed `## Logged contacts`. Other notes feed `## Other references`
    with a TODO placeholder summary the agent fills in later.
 
@@ -45,6 +49,17 @@ class StubResult:
     created: list[str] = field(default_factory=list)
     retried: list[str] = field(default_factory=list)
     failed: list[str] = field(default_factory=list)
+
+
+@dataclass
+class IndexSyncResult:
+    """Outcome of the people-folder index-sync pass."""
+
+    added: list[str] = field(default_factory=list)
+    skipped_reason: str | None = None
+
+
+_PERSON_BULLET_RE = re.compile(r"^\s*-\s*\[\[@[^\]|#]+")
 
 
 def _ensure_trailing_newline(body: str) -> str:
@@ -177,10 +192,52 @@ def _create_missing_stubs(vault_root: Path, cfg: config_mod.Config) -> StubResul
     return StubResult(created=created, retried=retried, failed=failed)
 
 
-def tend(*, person_name: str | None = None) -> tuple[StubResult, list[TendResult]]:
+def _sync_people_index(vault_root: Path, cfg: config_mod.Config) -> IndexSyncResult:
+    """Append wikilinks for any `@*.md` in `people_folder` missing from `index.md`.
+
+    Insertion lands after the last existing `- [[@*]]` bullet so the new
+    entries stay contiguous with the existing person list. EOF fallback when
+    no person bullet is present yet.
+
+    Skipped when `people_folder` is unset, or when `<people_folder>/index.md`
+    does not exist — the user owns whether the folder has an index at all.
+    """
+    if not cfg.people_folder:
+        return IndexSyncResult(skipped_reason="people_folder unset")
+    folder = vault_root / cfg.people_folder
+    index_md = folder / "index.md"
+    if not index_md.is_file():
+        return IndexSyncResult(skipped_reason="index.md missing")
+    text = index_md.read_text(encoding="utf-8")
+    existing = _existing_link_basenames(text)
+    persons = sorted(p.stem for p in folder.glob("@*.md") if p.is_file())
+    missing = [name for name in persons if name not in existing]
+    if not missing:
+        return IndexSyncResult()
+    text = _ensure_trailing_newline(text)
+    lines = text.splitlines(keepends=True)
+    insert_at = len(lines)
+    for i in range(len(lines) - 1, -1, -1):
+        if _PERSON_BULLET_RE.match(lines[i]):
+            insert_at = i + 1
+            break
+    new_bullets = [f"- [[{name}]] — contact\n" for name in missing]
+    lines[insert_at:insert_at] = new_bullets
+    index_md.write_text("".join(lines), encoding="utf-8")
+    return IndexSyncResult(added=missing)
+
+
+def tend(
+    *, person_name: str | None = None
+) -> tuple[StubResult, IndexSyncResult, list[TendResult]]:
     vault_root = vault.get_vault_root()
     cfg = config_mod.load(vault_root)
     stubs = _create_missing_stubs(vault_root, cfg) if person_name is None else StubResult()
+    index_sync = (
+        _sync_people_index(vault_root, cfg)
+        if person_name is None
+        else IndexSyncResult(skipped_reason="--person filter set")
+    )
     targets = [
         p for p in person.discover(vault_root)
         if person_name is None or p.stem.lstrip("@") == person_name
@@ -220,7 +277,7 @@ def tend(*, person_name: str | None = None) -> tuple[StubResult, list[TendResult
         results.append(
             TendResult(person=loaded.name, added_logged=added_logged, added_other=added_other)
         )
-    return stubs, results
+    return stubs, index_sync, results
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -228,12 +285,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--person", type=str, default=None)
     parser.add_argument("--dry-run", action="store_true", help="not implemented in MVP; reserved")
     args = parser.parse_args(argv)
-    stubs, results = tend(person_name=args.person)
+    stubs, index_sync, results = tend(person_name=args.person)
     for name in stubs.created:
         marker = " (retried)" if name in stubs.retried else ""
         print(f"created stub: {name}{marker}")
     for failure in stubs.failed:
         print(f"FAILED stub: {failure}")
+    for name in index_sync.added:
+        print(f"indexed: {name}")
     for r in results:
         added = len(r.added_logged) + len(r.added_other)
         if added:

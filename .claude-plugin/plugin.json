@@ -1,6 +1,6 @@
 {
   "name": "fam",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Personal CRM driven by an agent. Plain markdown inside an Obsidian vault.",
   "author": { "name": "Ricardo Decal" },
   "license": "MIT"

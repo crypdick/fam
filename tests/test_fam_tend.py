@@ -161,7 +161,7 @@ def test_tend_creates_stub_for_unresolved_at_link(
     note = vault_root / "Notes" / "mentions.md"
     note.write_text("Met [[@Stub Person]] at the party.\n")
     from scripts import fam_tend
-    stubs, _ = fam_tend.tend()
+    stubs, _, _ = fam_tend.tend()
     assert "@Stub Person" in stubs.created
     assert "@Stub Person" not in stubs.retried
     mock_create.assert_called_once()
@@ -182,7 +182,7 @@ def test_tend_records_retry_when_create_needed_extra_attempt(
     note = vault_root / "Notes" / "mentions.md"
     note.write_text("Met [[@Flaky Stub]] today.\n")
     from scripts import fam_tend
-    stubs, _ = fam_tend.tend()
+    stubs, _, _ = fam_tend.tend()
     assert "@Flaky Stub" in stubs.created
     assert "@Flaky Stub" in stubs.retried
 
@@ -204,7 +204,7 @@ def test_tend_records_failed_stub_when_retries_exhausted(
             raise vault_mod.ObsidianCliError("dropped")
         return 1
     with patch("scripts.lib.vault.create_from_template", side_effect=_flaky):
-        stubs, _ = fam_tend.tend()
+        stubs, _, _ = fam_tend.tend()
     assert "@Easy Win" in stubs.created
     assert "@Hard Fail" not in stubs.created
     assert any("@Hard Fail" in f for f in stubs.failed)
@@ -221,7 +221,7 @@ def test_tend_skips_stub_creation_when_person_already_exists(
     note = vault_root / "Notes" / "alice_mention.md"
     note.write_text("Saw [[@Alice]] yesterday.\n")
     from scripts import fam_tend
-    stubs, _ = fam_tend.tend()
+    stubs, _, _ = fam_tend.tend()
     assert "@Alice" not in stubs.created
     for call in mock_create.call_args_list:
         assert call.kwargs["file"] != Path("People/@Alice.md")
@@ -259,7 +259,7 @@ def test_tend_skips_stub_pass_when_person_filter_set(
     note = vault_root / "Notes" / "would_create.md"
     note.write_text("Met [[@Would Be Stub]] today.\n")
     from scripts import fam_tend
-    stubs, _ = fam_tend.tend(person_name="Alice")
+    stubs, _, _ = fam_tend.tend(person_name="Alice")
     assert stubs.created == []
     mock_create.assert_not_called()
 
@@ -272,3 +272,108 @@ def test_scan_at_wikilinks_skips_dotfile_dirs(vault_root: Path) -> None:
     from scripts.fam_tend import _scan_at_wikilinks
     found = _scan_at_wikilinks(vault_root)
     assert "@Hidden Person" not in found
+
+
+@patch("scripts.lib.vault.get_vault_root")
+@patch("scripts.lib.vault.backlinks", return_value=[])
+def test_sync_appends_unlinked_persons_after_last_person_bullet(
+    _bk, mock_root, vault_root: Path
+) -> None:
+    """New `@*.md` files in people_folder land right after the last existing
+    `- [[@*]]` bullet, keeping the person list contiguous."""
+    mock_root.return_value = vault_root
+    index_md = vault_root / "People" / "index.md"
+    index_md.write_text(
+        "# People\n\n"
+        "- [[plans/index|Plans]] — design docs\n\n"
+        "- [[@Alice]] — contact\n"
+        "- [[@Bob]] — contact\n"
+    )
+    from scripts import fam_tend
+    _, sync, _ = fam_tend.tend()
+    text = index_md.read_text()
+    assert sorted(sync.added) == ["@Carol", "@Dan", "@Eve"]
+    last_bob = text.index("- [[@Bob]] — contact\n") + len("- [[@Bob]] — contact\n")
+    next_chunk = text[last_bob : last_bob + 200]
+    assert next_chunk.startswith("- [[@Carol]] — contact\n")
+    assert "[[plans/index|Plans]]" in text  # meta section preserved
+
+
+@patch("scripts.lib.vault.get_vault_root")
+@patch("scripts.lib.vault.backlinks", return_value=[])
+def test_sync_eof_fallback_when_no_existing_person_bullets(
+    _bk, mock_root, vault_root: Path
+) -> None:
+    """Index without any `- [[@*]]` bullets gets new entries at EOF."""
+    mock_root.return_value = vault_root
+    index_md = vault_root / "People" / "index.md"
+    index_md.write_text("# People\n\nNo bullets yet.\n")
+    from scripts import fam_tend
+    _, sync, _ = fam_tend.tend()
+    assert len(sync.added) == 5
+    text = index_md.read_text()
+    assert text.endswith("- [[@Eve]] — contact\n")
+    assert text.startswith("# People\n\nNo bullets yet.\n")
+
+
+@patch("scripts.lib.vault.get_vault_root")
+@patch("scripts.lib.vault.backlinks", return_value=[])
+def test_sync_skipped_when_index_missing(
+    _bk, mock_root, vault_root: Path
+) -> None:
+    """No `<people_folder>/index.md` → skip silently, do not create one."""
+    mock_root.return_value = vault_root
+    assert not (vault_root / "People" / "index.md").exists()
+    from scripts import fam_tend
+    _, sync, _ = fam_tend.tend()
+    assert sync.added == []
+    assert sync.skipped_reason == "index.md missing"
+    assert not (vault_root / "People" / "index.md").exists()
+
+
+@patch("scripts.lib.vault.get_vault_root")
+@patch("scripts.lib.vault.backlinks", return_value=[])
+def test_sync_is_idempotent(_bk, mock_root, vault_root: Path) -> None:
+    """Running tend twice yields no duplicate index entries."""
+    mock_root.return_value = vault_root
+    index_md = vault_root / "People" / "index.md"
+    index_md.write_text("# People\n\n- [[@Alice]] — contact\n")
+    from scripts import fam_tend
+    fam_tend.tend()
+    fam_tend.tend()
+    text = index_md.read_text()
+    for name in ("@Alice", "@Bob", "@Carol", "@Dan", "@Eve"):
+        assert text.count(f"[[{name}]]") == 1
+
+
+@patch("scripts.lib.vault.get_vault_root")
+@patch("scripts.lib.vault.backlinks", return_value=[])
+def test_sync_skipped_when_person_filter_set(
+    _bk, mock_root, vault_root: Path
+) -> None:
+    """`--person <name>` is single-target work; whole-vault index sync skipped."""
+    mock_root.return_value = vault_root
+    index_md = vault_root / "People" / "index.md"
+    index_md.write_text("# People\n")
+    from scripts import fam_tend
+    _, sync, _ = fam_tend.tend(person_name="Alice")
+    assert sync.added == []
+    assert sync.skipped_reason == "--person filter set"
+    assert index_md.read_text() == "# People\n"
+
+
+@patch("scripts.lib.vault.get_vault_root")
+@patch("scripts.lib.vault.backlinks", return_value=[])
+def test_sync_dedups_against_path_prefixed_wikilinks(
+    _bk, mock_root, vault_root: Path
+) -> None:
+    """Entries linked as `[[wiki/People/@Alice]]` count as already-indexed."""
+    mock_root.return_value = vault_root
+    index_md = vault_root / "People" / "index.md"
+    index_md.write_text(
+        "# People\n\n- [[wiki/People/@Alice|Alice]] — contact\n"
+    )
+    from scripts import fam_tend
+    _, sync, _ = fam_tend.tend()
+    assert "@Alice" not in sync.added
+    assert sorted(sync.added) == ["@Bob", "@Carol", "@Dan", "@Eve"]
