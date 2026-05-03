@@ -4,7 +4,7 @@ This repo is a Claude Code plugin: a personal CRM driven by an agent on top of p
 
 ## Where the design lives
 
-`<vault>/wiki/People/plans/2026-05-01-fam-design.md`
+[`docs/DESIGN.md`](docs/DESIGN.md)
 
 Read before non-trivial changes. It owns the schema, the score model, and the command surface.
 
