@@ -71,3 +71,63 @@ def test_backlinks_returns_paths(mock_call: MagicMock) -> None:
         Path("Meetings/2026-04-01-meeting-with-alice.md"),
         Path("Notes/random.md"),
     ]
+
+
+@patch("scripts.lib.vault.call")
+def test_create_from_template_returns_one_when_file_appears_immediately(
+    mock_call: MagicMock, tmp_path: Path
+) -> None:
+    """First-attempt success: file already on disk when poll runs."""
+    target = tmp_path / "People" / "@X.md"
+    target.parent.mkdir()
+    target.write_text("")  # simulate Templater wrote it before poll
+    attempts = vault.create_from_template(
+        template=Path("T.md"), file=Path("People/@X.md"), vault_root=tmp_path
+    )
+    assert attempts == 1
+    assert mock_call.call_count == 1
+
+
+@patch("scripts.lib.vault.call")
+def test_create_from_template_retries_when_file_missing(
+    mock_call: MagicMock, tmp_path: Path
+) -> None:
+    """If poll times out, the wrapper re-issues the create."""
+    target = tmp_path / "People" / "@X.md"
+    target.parent.mkdir()
+    call_count = {"n": 0}
+    def _create_on_second(args: list[str]) -> str:
+        call_count["n"] += 1
+        if call_count["n"] == 2:
+            target.write_text("")  # appears on retry
+        return ""
+    mock_call.side_effect = _create_on_second
+    attempts = vault.create_from_template(
+        template=Path("T.md"),
+        file=Path("People/@X.md"),
+        vault_root=tmp_path,
+        poll_timeout_s=0.1,
+        poll_interval_s=0.05,
+    )
+    assert attempts == 2
+    assert mock_call.call_count == 2
+
+
+@patch("scripts.lib.vault.call")
+def test_create_from_template_raises_after_max_attempts(
+    mock_call: MagicMock, tmp_path: Path
+) -> None:
+    """File never appears → raise ObsidianCliError after max_attempts."""
+    target_parent = tmp_path / "People"
+    target_parent.mkdir()
+    mock_call.return_value = ""
+    with pytest.raises(vault.ObsidianCliError, match="did not materialize"):
+        vault.create_from_template(
+            template=Path("T.md"),
+            file=Path("People/@Ghost.md"),
+            vault_root=tmp_path,
+            max_attempts=2,
+            poll_timeout_s=0.05,
+            poll_interval_s=0.025,
+        )
+    assert mock_call.call_count == 2

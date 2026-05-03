@@ -43,6 +43,8 @@ class StubResult:
     """Outcome of the stub-creation pass."""
 
     created: list[str] = field(default_factory=list)
+    retried: list[str] = field(default_factory=list)
+    failed: list[str] = field(default_factory=list)
 
 
 def _ensure_trailing_newline(body: str) -> str:
@@ -159,11 +161,20 @@ def _create_missing_stubs(vault_root: Path, cfg: config_mod.Config) -> StubResul
     template = Path(cfg.person_template)
     folder = Path(cfg.people_folder)
     created: list[str] = []
+    retried: list[str] = []
+    failed: list[str] = []
     for name in unresolved:
         target = folder / f"{name}.md"
-        vault.create_from_template(template=template, file=target)
-        created.append(name)
-    return StubResult(created=created)
+        try:
+            attempts = vault.create_from_template(
+                template=template, file=target, vault_root=vault_root
+            )
+            created.append(name)
+            if attempts > 1:
+                retried.append(name)
+        except vault.ObsidianCliError as e:
+            failed.append(f"{name}: {e}")
+    return StubResult(created=created, retried=retried, failed=failed)
 
 
 def tend(*, person_name: str | None = None) -> tuple[StubResult, list[TendResult]]:
@@ -219,11 +230,16 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     stubs, results = tend(person_name=args.person)
     for name in stubs.created:
-        print(f"created stub: {name}")
+        marker = " (retried)" if name in stubs.retried else ""
+        print(f"created stub: {name}{marker}")
+    for failure in stubs.failed:
+        print(f"FAILED stub: {failure}")
     for r in results:
         added = len(r.added_logged) + len(r.added_other)
         if added:
             print(f"{r.person}: +{len(r.added_logged)} logged, +{len(r.added_other)} other")
+    if stubs.failed:
+        return 1
     return 0
 
 

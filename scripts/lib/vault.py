@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import time
 from pathlib import Path
 
 
@@ -45,16 +46,49 @@ def backlinks(target: Path) -> list[Path]:
     return [Path(line) for line in out.splitlines() if line.strip()]
 
 
-def create_from_template(*, template: Path, file: Path) -> None:
+def create_from_template(
+    *,
+    template: Path,
+    file: Path,
+    vault_root: Path,
+    max_attempts: int = 3,
+    poll_timeout_s: float = 2.0,
+    poll_interval_s: float = 0.2,
+) -> int:
     """Invoke `obsidian templater:create-from-template` to materialize `file`
-    from `template`. Both are vault-relative paths.
+    from `template`. Both are vault-relative paths; `vault_root` is the
+    absolute filesystem root used to verify the file actually persisted.
 
-    Requires the Templater plugin and its CLI command to be available. The
-    template must use static YAML frontmatter — `processFrontMatter` inside
-    `<%* %>` blocks races Templater's own write pipeline and silently loses.
+    Returns the number of attempts used (1 on first-try success).
+
+    Requires the Templater plugin and its CLI command. The template must use
+    static YAML frontmatter — `processFrontMatter` inside `<%* %>` blocks
+    races Templater's write pipeline and silently loses fields.
+
+    The CLI returns success even when Templater silently drops the create
+    (~10% rate observed under bursts when the new file is also a wikilink
+    target elsewhere — link-resolution races the file write). Workaround:
+    poll for the file on disk after each call; on timeout, re-issue the
+    create up to `max_attempts` times before raising.
     """
-    call([
-        "templater:create-from-template",
-        f"template={template.as_posix()}",
-        f"file={file.as_posix()}",
-    ])
+    abs_target = vault_root / file
+    deadline_steps = max(1, int(poll_timeout_s / poll_interval_s))
+    last_err: Exception | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            call([
+                "templater:create-from-template",
+                f"template={template.as_posix()}",
+                f"file={file.as_posix()}",
+            ])
+        except ObsidianCliError as e:
+            last_err = e
+            continue
+        for _ in range(deadline_steps):
+            if abs_target.exists():
+                return attempt
+            time.sleep(poll_interval_s)
+    raise ObsidianCliError(
+        f"templater:create-from-template did not materialize {file} after "
+        f"{max_attempts} attempts (last error: {last_err})"
+    )

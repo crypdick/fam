@@ -152,7 +152,7 @@ def test_scan_at_wikilinks_finds_unresolved_at_links(vault_root: Path) -> None:
 
 @patch("scripts.lib.vault.get_vault_root")
 @patch("scripts.lib.vault.backlinks", return_value=[])
-@patch("scripts.lib.vault.create_from_template")
+@patch("scripts.lib.vault.create_from_template", return_value=1)
 def test_tend_creates_stub_for_unresolved_at_link(
     mock_create, _bk, mock_root, vault_root: Path
 ) -> None:
@@ -163,10 +163,51 @@ def test_tend_creates_stub_for_unresolved_at_link(
     from scripts import fam_tend
     stubs, _ = fam_tend.tend()
     assert "@Stub Person" in stubs.created
+    assert "@Stub Person" not in stubs.retried
     mock_create.assert_called_once()
     kwargs = mock_create.call_args.kwargs
     assert kwargs["template"] == Path("Templates/person_template.md")
     assert kwargs["file"] == Path("People/@Stub Person.md")
+    assert kwargs["vault_root"] == vault_root
+
+
+@patch("scripts.lib.vault.get_vault_root")
+@patch("scripts.lib.vault.backlinks", return_value=[])
+@patch("scripts.lib.vault.create_from_template", return_value=2)
+def test_tend_records_retry_when_create_needed_extra_attempt(
+    _create, _bk, mock_root, vault_root: Path
+) -> None:
+    """Stubs that needed more than one Templater attempt show up in `retried`."""
+    mock_root.return_value = vault_root
+    note = vault_root / "Notes" / "mentions.md"
+    note.write_text("Met [[@Flaky Stub]] today.\n")
+    from scripts import fam_tend
+    stubs, _ = fam_tend.tend()
+    assert "@Flaky Stub" in stubs.created
+    assert "@Flaky Stub" in stubs.retried
+
+
+@patch("scripts.lib.vault.get_vault_root")
+@patch("scripts.lib.vault.backlinks", return_value=[])
+def test_tend_records_failed_stub_when_retries_exhausted(
+    _bk, mock_root, vault_root: Path
+) -> None:
+    """When `create_from_template` raises after exhausting retries, the stub
+    lands in `failed` and the run does not abort other stubs."""
+    mock_root.return_value = vault_root
+    note = vault_root / "Notes" / "mentions.md"
+    note.write_text("Met [[@Hard Fail]] and [[@Easy Win]] today.\n")
+    from scripts import fam_tend
+    from scripts.lib import vault as vault_mod
+    def _flaky(*, template, file, vault_root):
+        if "Hard Fail" in file.name:
+            raise vault_mod.ObsidianCliError("dropped")
+        return 1
+    with patch("scripts.lib.vault.create_from_template", side_effect=_flaky):
+        stubs, _ = fam_tend.tend()
+    assert "@Easy Win" in stubs.created
+    assert "@Hard Fail" not in stubs.created
+    assert any("@Hard Fail" in f for f in stubs.failed)
 
 
 @patch("scripts.lib.vault.get_vault_root")
