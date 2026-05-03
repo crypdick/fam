@@ -1,0 +1,17 @@
+{
+  "name": "fam",
+  "owner": {
+    "name": "Ricardo Decal"
+  },
+  "metadata": {
+    "description": "Personal CRM driven by an agent. Plain markdown inside an Obsidian vault."
+  },
+  "plugins": [
+    {
+      "name": "fam",
+      "source": "./",
+      "description": "Personal CRM driven by an agent. Plain markdown inside an Obsidian vault.",
+      "version": "0.1.0"
+    }
+  ]
+}
