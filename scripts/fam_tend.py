@@ -29,10 +29,24 @@ class TendResult:
     added_other: list[str]
 
 
+def _ensure_trailing_newline(body: str) -> str:
+    """Guarantee body ends with `\\n` so splitlines/insert never glues lines.
+
+    `splitlines(keepends=True)` only omits the trailing newline on the LAST
+    line, so a heading written without a final `\\n` (common when a fixture
+    or hand-edited note ends with `## Other references` and no blank line)
+    would later have inserted bullets concatenated onto the same line.
+    """
+    if body and not body.endswith("\n"):
+        return body + "\n"
+    return body
+
+
 def _ensure_section(body: str, heading: str) -> str:
+    body = _ensure_trailing_newline(body)
     if heading in body:
         return body
-    sep = "\n\n" if not body.endswith("\n") else "\n"
+    sep = "\n" if body.endswith("\n") else "\n\n"
     return body + f"{sep}{heading}\n"
 
 

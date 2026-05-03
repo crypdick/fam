@@ -51,3 +51,18 @@ def test_tend_writes_todo_placeholder_for_unknown_summary(_bk, mock_root, vault_
     text = (vault_root / "People" / "@Dan.md").read_text()
     assert "[[x]]" in text
     assert "TODO: summarize" in text
+
+
+@patch("scripts.lib.vault.get_vault_root")
+@patch("scripts.lib.vault.backlinks", return_value=[Path("Notes/x.md")])
+def test_tend_keeps_heading_on_its_own_line(_bk, mock_root, vault_root: Path) -> None:
+    """Regression: when a person note ends with `## Other references` and no
+    trailing newline, the inserted bullet must not concatenate onto the
+    heading line (`## Other references- [[x]] — TODO: summarize`).
+    """
+    mock_root.return_value = vault_root
+    from scripts import fam_tend
+    fam_tend.tend(person_name="Dan")
+    text = (vault_root / "People" / "@Dan.md").read_text()
+    assert "## Other references\n- [[x]]" in text
+    assert "## Other references- " not in text
