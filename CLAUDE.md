@@ -5,9 +5,8 @@ This repo is a Claude Code plugin: a personal CRM driven by an agent on top of p
 ## Where the design lives
 
 `<vault>/wiki/People/plans/2026-05-01-fam-design.md`
-`<vault>/wiki/People/plans/2026-05-02-fam-implementation.md`
 
-Read before non-trivial changes. They own the schema, the score model, and the command surface.
+Read before non-trivial changes. It owns the schema, the score model, and the command surface.
 
 ## Conventions
 
