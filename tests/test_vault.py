@@ -74,6 +74,37 @@ def test_backlinks_returns_paths(mock_call: MagicMock) -> None:
 
 
 @patch("scripts.lib.vault.call")
+def test_backlinks_filters_no_results_sentinel(mock_call: MagicMock) -> None:
+    """Regression: CLI emits `"No backlinks found."` on stdout (exit 0) when
+    the target has zero backlinks. The pre-fix parser turned that line into
+    `Path("No backlinks found.")` and propagated it as a fake wikilink
+    (observed leaking into person notes as `[[No backlinks found.]]` —
+    TODO: summarize bullets)."""
+    mock_call.return_value = "No backlinks found.\n"
+    assert vault.backlinks(Path("People/@Ghost.md")) == []
+
+
+@patch("scripts.lib.vault.call")
+def test_backlinks_filters_file_not_found_sentinel(mock_call: MagicMock) -> None:
+    """CLI emits `Error: File "..." not found.` on stdout (exit 0) when the
+    target path doesn't exist on disk. Same family of bug as the no-results
+    sentinel — must not be parsed as a backlink path."""
+    mock_call.return_value = 'Error: File "People/@Missing.md" not found.\n'
+    assert vault.backlinks(Path("People/@Missing.md")) == []
+
+
+@patch("scripts.lib.vault.call")
+def test_backlinks_filters_mixed_sentinel_and_real(mock_call: MagicMock) -> None:
+    """Defensive: even if the CLI ever interleaves a sentinel with real
+    paths, only the real .md paths should survive."""
+    mock_call.return_value = "Notes/a.md\nNo backlinks found.\nMeetings/b.md\n"
+    assert vault.backlinks(Path("People/@X.md")) == [
+        Path("Notes/a.md"),
+        Path("Meetings/b.md"),
+    ]
+
+
+@patch("scripts.lib.vault.call")
 def test_create_from_template_returns_one_when_file_appears_immediately(
     mock_call: MagicMock, tmp_path: Path
 ) -> None:

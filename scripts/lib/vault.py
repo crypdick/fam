@@ -41,9 +41,15 @@ def backlinks(target: Path) -> list[Path]:
     """List vault-relative paths that link to `target`.
 
     `target` is a vault-relative path (e.g. `People/@Alice.md`).
+
+    The CLI emits human sentences on stdout for non-result conditions
+    regardless of `format=` (`"No backlinks found."` for zero results,
+    `"Error: File ... not found."` for missing target — both with exit 0).
+    Filter to lines that end in `.md` so those sentinels are rejected and
+    only real backlink paths survive.
     """
     out = call(["backlinks", f"path={target.as_posix()}", "format=tsv"])
-    return [Path(line) for line in out.splitlines() if line.strip()]
+    return [Path(line.strip()) for line in out.splitlines() if line.strip().endswith(".md")]
 
 
 def create_from_template(
