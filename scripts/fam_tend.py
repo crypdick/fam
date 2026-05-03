@@ -18,6 +18,7 @@ from pathlib import Path
 from scripts.lib import person, vault
 
 _DATE_PREFIX_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})")
+_WIKILINK_RE = re.compile(r"\[\[([^\]\n]+)\]\]")
 _LOGGED_HEADING = "## Logged contacts"
 _OTHER_HEADING = "## Other references"
 
@@ -64,8 +65,29 @@ def _section_lines(body: str, heading: str) -> tuple[int, int]:
     return start + 1, end
 
 
-def _has_link(section_body: str, link_target: str) -> bool:
-    return f"[[{link_target}]]" in section_body
+def _wikilink_basename(link: str) -> str:
+    """Normalize a wikilink target to its base note name.
+
+    Handles path-prefixed (`wiki/People/index`), aliased (`index|People`),
+    and section-anchored (`index#Section`) forms. Strips a trailing `.md`
+    extension if present.
+    """
+    target = link.split("|", 1)[0]
+    target = target.split("#", 1)[0]
+    target = target.rsplit("/", 1)[-1]
+    if target.endswith(".md"):
+        target = target[:-3]
+    return target
+
+
+def _existing_link_basenames(body: str) -> set[str]:
+    """Return the set of normalized wikilink basenames present anywhere in body.
+
+    Body-wide (not section-scoped) so that a link previously routed into the
+    wrong section by an older tend or by hand is still recognized as
+    already-present and is not re-added as a duplicate.
+    """
+    return {_wikilink_basename(m) for m in _WIKILINK_RE.findall(body)}
 
 
 def _classify(path: Path) -> tuple[bool, date | None]:
@@ -95,29 +117,27 @@ def tend(*, person_name: str | None = None) -> list[TendResult]:
         backs = vault.backlinks(target_path.relative_to(vault_root))
         added_logged: list[str] = []
         added_other: list[str] = []
+        existing = _existing_link_basenames(body)
         for back in backs:
             link_target = back.stem
+            if link_target in existing:
+                continue
             is_meeting, d = _classify(back)
             if is_meeting and d is not None:
-                logged_start, logged_end = _section_lines(body, _LOGGED_HEADING)
-                section_body = "".join(body.splitlines(keepends=True)[logged_start:logged_end])
-                if _has_link(section_body, link_target):
-                    continue
+                _, logged_end = _section_lines(body, _LOGGED_HEADING)
                 bullet = f"- {d.isoformat()} — meeting: [[{link_target}]]\n"
                 lines = body.splitlines(keepends=True)
                 lines.insert(logged_end, bullet)
                 body = "".join(lines)
                 added_logged.append(link_target)
             else:
-                other_start, other_end = _section_lines(body, _OTHER_HEADING)
-                section_body = "".join(body.splitlines(keepends=True)[other_start:other_end])
-                if _has_link(section_body, link_target):
-                    continue
+                _, other_end = _section_lines(body, _OTHER_HEADING)
                 bullet = f"- [[{link_target}]] — TODO: summarize\n"
                 lines = body.splitlines(keepends=True)
                 lines.insert(other_end, bullet)
                 body = "".join(lines)
                 added_other.append(link_target)
+            existing.add(link_target)
         loaded.body = body
         person.write(loaded)
         results.append(

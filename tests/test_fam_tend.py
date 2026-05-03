@@ -66,3 +66,68 @@ def test_tend_keeps_heading_on_its_own_line(_bk, mock_root, vault_root: Path) ->
     text = (vault_root / "People" / "@Dan.md").read_text()
     assert "## Other references\n- [[x]]" in text
     assert "## Other references- " not in text
+
+
+@patch("scripts.lib.vault.get_vault_root")
+@patch("scripts.lib.vault.backlinks", return_value=[Path("People/index.md")])
+def test_tend_dedups_against_path_prefixed_wikilink(_bk, mock_root, vault_root: Path) -> None:
+    """Regression: when Obsidian's link-update linter expands `[[index]]` to
+    `[[wiki/People/index]]` between tend runs, the next run must still
+    recognize the entry and not re-add `[[index]] — TODO: summarize`.
+    """
+    dan = vault_root / "People" / "@Dan.md"
+    dan.write_text(
+        "---\ncircle: orbit\n---\n\n"
+        "## Logged contacts\n\n"
+        "## Other references\n"
+        "- [[wiki/People/index]] — Listed in the People index as a contact.\n"
+    )
+    from scripts import fam_tend
+    fam_tend.tend(person_name="Dan")
+    text = dan.read_text()
+    assert text.count("[[index]]") == 0
+    assert text.count("People/index]]") == 1
+    assert "TODO: summarize" not in text
+
+
+@patch("scripts.lib.vault.get_vault_root")
+@patch("scripts.lib.vault.backlinks", return_value=[Path("Notes/legacy.md")])
+def test_tend_dedups_across_sections(_bk, mock_root, vault_root: Path) -> None:
+    """Regression: a non-meeting backlink that an older tend version routed
+    into `## Logged contacts` must not be re-added under `## Other references`
+    on a current run. Skip if the link is already anywhere in the body.
+    """
+    dan = vault_root / "People" / "@Dan.md"
+    dan.write_text(
+        "---\ncircle: orbit\n---\n\n"
+        "## Logged contacts\n"
+        "- [[legacy]] — TODO: summarize\n\n"
+        "## Other references\n"
+    )
+    from scripts import fam_tend
+    fam_tend.tend(person_name="Dan")
+    text = dan.read_text()
+    assert text.count("[[legacy]]") == 1
+
+
+@patch("scripts.lib.vault.get_vault_root")
+@patch("scripts.lib.vault.backlinks", return_value=[
+    Path("Notes/dup.md"), Path("Notes/dup.md"),
+])
+def test_tend_dedups_duplicate_backlinks_within_run(_bk, mock_root, vault_root: Path) -> None:
+    """Same backlink appearing twice in one run should be added only once."""
+    mock_root.return_value = vault_root
+    from scripts import fam_tend
+    fam_tend.tend(person_name="Dan")
+    text = (vault_root / "People" / "@Dan.md").read_text()
+    assert text.count("[[dup]]") == 1
+
+
+def test_wikilink_basename_normalization() -> None:
+    from scripts.fam_tend import _wikilink_basename
+    assert _wikilink_basename("index") == "index"
+    assert _wikilink_basename("wiki/People/index") == "index"
+    assert _wikilink_basename("wiki/People/index.md") == "index"
+    assert _wikilink_basename("index|People") == "index"
+    assert _wikilink_basename("index#Section") == "index"
+    assert _wikilink_basename("wiki/People/index#Section|alias") == "index"
