@@ -9,9 +9,9 @@ description: Personal CRM. Ranks people due for contact. Reads/writes plain mark
 
 - Obsidian app installed + running
 - `obsidian` CLI enabled: Settings → General → Command line interface
-- (Optional) Templater plugin if user wants `examples/person_template.md`
+- (Optional) Templater plugin for `examples/person_template.md`
 
-If `obsidian` CLI errors, tell user to enable. Don't preflight-check.
+`obsidian` CLI errors → tell user enable. No preflight check.
 
 ## Vault contract
 
@@ -27,11 +27,11 @@ Required:
 
 Optional:
 - `cadence_days_override: <int>`
-- `snooze_until: <ISO date>` — hides until date
+- `snooze_until: <ISO date>` — hide until date
 - `next_action_at: <ISO date>` — agent-set due override
 - `contact_channels_ordered_preference: [imessage, signal, email, ...]`
 
-User's other frontmatter passes through. Don't touch it.
+User's other frontmatter passes through. Don't touch.
 
 ## Commands
 
@@ -48,22 +48,20 @@ User says "log a coffee with Christina yesterday, talked about her dog".
 1. Find `@Christina*.md` in vault
 2. Append under `## Logged contacts`:
    `- 2026-04-30 — coffee, talked about her dog`
-3. Use today minus 1 for "yesterday"; today for "today"; parse explicit dates as ISO
+3. "yesterday" = today−1; "today" = today; explicit dates → parse as ISO
 
 ## Cleanup
 
-When `next_action_at` or `snooze_until` is in the past:
-- Clear it from frontmatter
-- Stale temporary overrides accumulate otherwise
+`next_action_at` or `snooze_until` in past → clear from frontmatter. Stale overrides accumulate otherwise.
 
 Run before `/fam-today` if frontmatter looks dusty.
 
-## Adding a new person
+## Adding new person
 
 User says "start tracking @Jane Doe, met her at climbing gym, close circle".
 
-1. Create `<vault>/<wherever-people-go>/@Jane Doe.md` (use the user's existing layout — check if a folder for person notes already exists)
-2. Frontmatter: `circle: close` (+ any other intake info)
+1. Create `<vault>/<wherever-people-go>/@Jane Doe.md` (match user's existing layout — check for existing person folder first)
+2. Frontmatter: `circle: close` (+ intake info)
 3. Body:
    ```
    ## Logged contacts
@@ -76,21 +74,9 @@ See `examples/@Jane Doe.md`.
 
 ## After tending
 
-`/fam-tend` writes `- [[note]] — TODO: summarize` placeholders under `## Other references` for non-meeting backlinks. Agent fills in:
+`/fam-tend` writes `- [[note]] — TODO: summarize` placeholders under `## Other references`. Fill: read linked note, replace placeholder with one-sentence reason person appears.
 
-1. Read each linked note
-2. Replace `TODO: summarize` with one-sentence reason that person appears
-
-### Stale TODOs — delete, don't ask
-
-`TODO: summarize` lines may also appear **under `## Logged contacts`** (wrong section). Causes:
-
-- Older buggy tend versions routed non-meeting backlinks there
-- Hand-edited drift
-
-When you find a stale TODO, check whether `## Other references` already has a summarized line for the same wikilink (current dedup at `_existing_link_basenames` is body-wide, so re-tend won't re-add a missing summary). If yes → **delete the stale TODO line silently. Do not ask the user.** This is housekeeping, not a decision.
-
-If no matching summary exists, treat the TODO normally: read the linked note, write the summary under `## Other references`, then delete the stale line.
+Stale or misplaced cruft (TODOs in wrong section, duplicates, drift from older runs)? Fix it. Vault reflects current state. Don't ask.
 
 ## Errors
 
@@ -99,7 +85,7 @@ If no matching summary exists, treat the TODO normally: read the linked note, wr
 | `obsidian: command not found` | Install Obsidian, enable CLI in settings |
 | `fam-circles.md not found` | Create one in vault with circles yaml block |
 | `multiple fam-circles.md found` | Keep one, delete others |
-| `unknown circle <X>` | User used wrong circle name in frontmatter |
+| `unknown circle <X>` | Wrong circle name in frontmatter |
 | `cadence_days_override must be int > 0` | Fix or remove field |
 
 Surface verbatim to user.
