@@ -33,8 +33,17 @@ def call(args: list[str]) -> str:
 
 
 def get_vault_root() -> Path:
-    """Return the active vault's filesystem root."""
-    return Path(call(["vault", "info=path"]).strip())
+    """Return the active vault's filesystem root.
+
+    Older Obsidian installers can print advisory text to stdout before the
+    actual path. Treat the last absolute-path-looking line as the vault root.
+    """
+    out = call(["vault", "info=path"])
+    for line in reversed(out.splitlines()):
+        text = line.strip()
+        if text.startswith("/"):
+            return Path(text)
+    return Path(out.strip())
 
 
 def backlinks(target: Path) -> list[Path]:

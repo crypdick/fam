@@ -64,6 +64,18 @@ def test_get_vault_root_strips_whitespace(mock_call: MagicMock) -> None:
 
 
 @patch("scripts.lib.vault.call")
+def test_get_vault_root_ignores_obsidian_cli_stdout_warnings(mock_call: MagicMock) -> None:
+    mock_call.return_value = (
+        "2026-05-04 20:52:39 Loading updated app package "
+        "/Users/ricardo/Library/Application Support/obsidian/obsidian-1.12.7.asar\n"
+        "Your Obsidian installer is out of date. Please download the latest installer "
+        "which includes better CLI support: https://obsidian.md/download\n"
+        "/Users/ricardo/Documents/obsidian\n"
+    )
+    assert vault.get_vault_root() == Path("/Users/ricardo/Documents/obsidian")
+
+
+@patch("scripts.lib.vault.call")
 def test_backlinks_returns_paths(mock_call: MagicMock) -> None:
     mock_call.return_value = "Meetings/2026-04-01-meeting-with-alice.md\nNotes/random.md\n"
     result = vault.backlinks(Path("People/@Alice.md"))
