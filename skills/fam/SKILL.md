@@ -39,6 +39,7 @@ Optional:
 - `snooze_until: <ISO date>` — hide until date
 - `next_action_at: <ISO date>` — agent-set due override
 - `contact_channels_ordered_preference: [imessage, signal, email, ...]`
+- `periodic_contact_reminders: false` — mute the cadence-based queue for this person. Still surfaces if `next_action_at` set (for future birthdays / manual nudges). Default `true`. Use when user says "stop nudging me about X" or "no periodic reminders for X" — preferable over flipping them to `passive` since user can keep their circle.
 
 User's other frontmatter passes through. Don't touch.
 

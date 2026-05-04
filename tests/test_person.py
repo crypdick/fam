@@ -60,3 +60,40 @@ def test_write_roundtrips_extra_fields(tmp_path: Path) -> None:
     assert "profession: dev" in text
     assert "circle: close" in text
     assert "## Logged contacts" in text
+
+
+def test_periodic_contact_reminders_defaults_true(tmp_path: Path) -> None:
+    src = tmp_path / "@Foo.md"
+    src.write_text("---\ncircle: close\n---\n")
+    p = person.load(src)
+    assert p.periodic_contact_reminders is True
+
+
+def test_periodic_contact_reminders_false(tmp_path: Path) -> None:
+    src = tmp_path / "@Foo.md"
+    src.write_text("---\ncircle: close\nperiodic_contact_reminders: false\n---\n")
+    p = person.load(src)
+    assert p.periodic_contact_reminders is False
+
+
+def test_periodic_contact_reminders_non_bool_raises(tmp_path: Path) -> None:
+    src = tmp_path / "@Foo.md"
+    src.write_text("---\ncircle: close\nperiodic_contact_reminders: maybe\n---\n")
+    with pytest.raises(person.PersonSchemaError, match="periodic_contact_reminders"):
+        person.load(src)
+
+
+def test_write_omits_default_periodic_contact_reminders(tmp_path: Path) -> None:
+    src = tmp_path / "@Foo.md"
+    src.write_text("---\ncircle: close\n---\n")
+    p = person.load(src)
+    person.write(p)
+    assert "periodic_contact_reminders" not in src.read_text()
+
+
+def test_write_persists_periodic_contact_reminders_false(tmp_path: Path) -> None:
+    src = tmp_path / "@Foo.md"
+    src.write_text("---\ncircle: close\nperiodic_contact_reminders: false\n---\n")
+    p = person.load(src)
+    person.write(p)
+    assert "periodic_contact_reminders: false" in src.read_text()

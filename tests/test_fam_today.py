@@ -68,3 +68,39 @@ def test_today_table_includes_days_overdue_column(mock_root, vault_root: Path, c
     fam_today.run(today=date(2026, 5, 15), json_out=False)
     captured = capsys.readouterr()
     assert "DAYS_OVERDUE" in captured.out
+
+
+@patch("scripts.lib.vault.get_vault_root")
+def test_today_excludes_periodic_muted(mock_root, vault_root: Path) -> None:
+    mock_root.return_value = vault_root
+    (vault_root / "People" / "@Greta.md").write_text(
+        "---\ncircle: inner\nperiodic_contact_reminders: false\n---\n\n## Logged contacts\n"
+    )
+    from scripts import fam_today
+    rows = fam_today.compute_rows(today=date(2026, 5, 15), include_below_threshold=False)
+    assert all(r.name != "Greta" for r in rows)
+
+
+@patch("scripts.lib.vault.get_vault_root")
+def test_today_all_still_excludes_periodic_muted(mock_root, vault_root: Path) -> None:
+    mock_root.return_value = vault_root
+    (vault_root / "People" / "@Greta.md").write_text(
+        "---\ncircle: inner\nperiodic_contact_reminders: false\n---\n\n## Logged contacts\n"
+    )
+    from scripts import fam_today
+    rows = fam_today.compute_rows(today=date(2026, 5, 15), include_below_threshold=True)
+    assert all(r.name != "Greta" for r in rows)
+
+
+@patch("scripts.lib.vault.get_vault_root")
+def test_today_includes_periodic_muted_with_next_action_at(
+    mock_root, vault_root: Path
+) -> None:
+    mock_root.return_value = vault_root
+    (vault_root / "People" / "@Greta.md").write_text(
+        "---\ncircle: inner\nperiodic_contact_reminders: false\n"
+        "next_action_at: 2026-05-15\n---\n\n## Logged contacts\n"
+    )
+    from scripts import fam_today
+    rows = fam_today.compute_rows(today=date(2026, 5, 15), include_below_threshold=False)
+    assert any(r.name == "Greta" for r in rows)

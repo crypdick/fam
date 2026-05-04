@@ -132,6 +132,7 @@ cadence_days_override: 14           # int > 0; overrides circle default
 snooze_until: 2026-06-01            # ISO date; hides until then
 next_action_at: 2026-05-15          # ISO date; agent-set due override
 contact_channels_ordered_preference: [imessage, signal, email]
+periodic_contact_reminders: false   # bool, default true; mutes cadence-based queue only
 ---
 
 # narrative free body — anything the user wants
@@ -148,6 +149,7 @@ contact_channels_ordered_preference: [imessage, signal, email]
 
 - `circle` is the only required field. All others optional with sensible defaults.
 - Default circle is `passive` — tracked but never on a cadence. New people start here; user upgrades when they decide to actively maintain. `reference` = no relationship intent (notable but not a contact target).
+- `periodic_contact_reminders: false` mutes the periodic cadence-based queue for this person without demoting them to `passive`. They still surface when `next_action_at` is set (used by future custom reminders: birthdays, anniversaries, manual nudges). Default `true`.
 
 ### `## Logged contacts` — source of truth for contact dates
 
@@ -207,7 +209,7 @@ def in_queue(person, score, config) -> bool:
 
 Sort: score descending. Tie-break: `last_contacted` ascending (longer ago = higher).
 
-`fam-today --all` skips the threshold filter (still excludes passive/reference + snoozed).
+`fam-today --all` skips the threshold filter (still excludes passive/reference, snoozed, and `periodic_contact_reminders: false` without `next_action_at`).
 
 ## Command surface
 
@@ -284,6 +286,7 @@ with validate.guard():
 - `cadence_days_override`: int > 0 if present.
 - `snooze_until`, `next_action_at`: ISO date if present.
 - `contact_channels_ordered_preference`: list of strings if present.
+- `periodic_contact_reminders`: bool if present (default `true`).
 - No unknown keys *within the `fam` namespace*. User-namespace keys (anything else) are passed through untouched.
 
 ### Config checks

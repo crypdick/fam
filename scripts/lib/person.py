@@ -20,6 +20,7 @@ FAM_FIELDS = (
     "snooze_until",
     "next_action_at",
     "contact_channels_ordered_preference",
+    "periodic_contact_reminders",
 )
 
 
@@ -37,6 +38,7 @@ class Person:
     snooze_until: date | None = None
     next_action_at: date | None = None
     contact_channels_ordered_preference: list[str] = field(default_factory=list)
+    periodic_contact_reminders: bool = True
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -75,6 +77,11 @@ def load(path: Path) -> Person:
         raise PersonSchemaError(
             f"{path}: `contact_channels_ordered_preference` must be a list of strings"
         )
+    pcr_raw = fm.pop("periodic_contact_reminders", True)
+    if not isinstance(pcr_raw, bool):
+        raise PersonSchemaError(
+            f"{path}: `periodic_contact_reminders` must be a boolean, got {pcr_raw!r}"
+        )
     # Reject fam-namespace typos: anything starting with `fam_` or matching a
     # known prefix the user might have miswritten.
     for k in fm:
@@ -89,6 +96,7 @@ def load(path: Path) -> Person:
         snooze_until=snooze,
         next_action_at=next_action,
         contact_channels_ordered_preference=channels,
+        periodic_contact_reminders=pcr_raw,
         extra=fm,
     )
 
@@ -104,6 +112,8 @@ def write(person: Person) -> None:
         fm["next_action_at"] = person.next_action_at
     if person.contact_channels_ordered_preference:
         fm["contact_channels_ordered_preference"] = person.contact_channels_ordered_preference
+    if not person.periodic_contact_reminders:
+        fm["periodic_contact_reminders"] = False
     fm.update(person.extra)
     post = frontmatter.Post(person.body, **fm)
     person.path.write_text(frontmatter.dumps(post), encoding="utf-8")

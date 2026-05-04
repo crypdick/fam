@@ -39,6 +39,8 @@ def compute_rows(
         p = person.load(path)
         if circle is not None and p.circle != circle:
             continue
+        if not p.periodic_contact_reminders and p.next_action_at is None:
+            continue
         last = interactions.last_contacted(p)
         snoozed = bool(p.snooze_until and today < p.snooze_until)
         if snoozed and not include_snoozed:
