@@ -57,6 +57,26 @@ def test_call_omits_vault_when_env_unset(
     assert not any(a.startswith("vault=") for a in args)
 
 
+@patch("scripts.lib.vault.subprocess.run")
+@patch(
+    "scripts.lib.vault.MACOS_OBSIDIAN_CLI",
+    Path("/Applications/Obsidian.app/Contents/MacOS/Obsidian"),
+)
+@patch("scripts.lib.vault.Path.is_file")
+@patch("scripts.lib.vault.shutil.which")
+def test_call_uses_macos_obsidian_app_binary_when_obsidian_not_on_path(
+    mock_which: MagicMock,
+    mock_is_file: MagicMock,
+    mock_run: MagicMock,
+) -> None:
+    mock_which.return_value = None
+    mock_is_file.return_value = True
+    mock_run.return_value = _completed(stdout="ok\n")
+    vault.call(["version"])
+    args = mock_run.call_args.args[0]
+    assert args[:2] == ["/Applications/Obsidian.app/Contents/MacOS/Obsidian", "version"]
+
+
 @patch("scripts.lib.vault.call")
 def test_get_vault_root_strips_whitespace(mock_call: MagicMock) -> None:
     mock_call.return_value = "/home/user/Documents/MyVault\n"

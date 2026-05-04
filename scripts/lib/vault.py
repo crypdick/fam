@@ -7,13 +7,30 @@ so the caller (or the user) can act on the message.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import time
 from pathlib import Path
 
+MACOS_OBSIDIAN_CLI = Path("/Applications/Obsidian.app/Contents/MacOS/Obsidian")
+
 
 class ObsidianCliError(RuntimeError):
     """Raised when an `obsidian` invocation returns nonzero."""
+
+
+def obsidian_executable() -> str:
+    """Return an Obsidian CLI executable path.
+
+    Prefer `obsidian` from PATH. On macOS, the app binary also supports the
+    CLI but may not be symlinked into non-interactive launchd/cron PATHs.
+    """
+    found = shutil.which("obsidian")
+    if found:
+        return found
+    if MACOS_OBSIDIAN_CLI.is_file():
+        return str(MACOS_OBSIDIAN_CLI)
+    return "obsidian"
 
 
 def call(args: list[str]) -> str:
@@ -21,7 +38,7 @@ def call(args: list[str]) -> str:
 
     Returns stdout decoded as UTF-8. Raises ObsidianCliError on nonzero exit.
     """
-    cmd = ["obsidian", *args]
+    cmd = [obsidian_executable(), *args]
     vault_name = os.environ.get("FAM_VAULT_NAME")
     if vault_name:
         cmd.append(f"vault={vault_name}")

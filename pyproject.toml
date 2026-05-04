@@ -1,6 +1,6 @@
 [project]
 name = "fam"
-version = "0.3.1"
+version = "0.3.2"
 description = "Personal CRM as a Claude Code plugin backed by Obsidian markdown."
 requires-python = ">=3.13"
 dependencies = [
@@ -35,5 +35,17 @@ include = ["scripts", "tests"]
 pythonVersion = "3.13"
 typeCheckingMode = "standard"
 
+[project.scripts]
+fam-tend = "scripts.fam_tend:main"
+fam-today = "scripts.fam_today:main"
+fam-validate = "scripts.fam_validate:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["scripts*"]
+
 [tool.uv]
-package = false
+package = true
