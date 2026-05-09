@@ -51,6 +51,10 @@ User's other frontmatter passes through. Don't touch.
 | `/fam-tend` | Garden vault. (1) Scan whole vault for unresolved `[[@Name]]` links → create person stubs via Templater. (2) Sync `<people_folder>/index.md` with `- [[@Name]] — contact` entries for any persons missing from it. (3) Backlinks → `## Logged contacts` (dated) + `## Other references` (TODO summaries to fill). Idempotent. |
 | `/fam-validate` | Check config + frontmatter. |
 
+Repo CLI equivalents exist as console scripts when running from the repo with uv: `uv run fam-tend`, `uv run fam-today`, and `uv run fam-validate`. Prefer these stable entry points over `python scripts/fam_*.py` in automation.
+
+Important: even when executing from the `fam` repo, `fam-circles.md` is **not** expected to live in the repo. The CLI must resolve the Obsidian vault path first, then search for the unique `fam-circles.md` anywhere under that vault. Do not search only under `/Users/ricardo/src/PERSONAL/fam` or the current working directory.
+
 ## Logging touches (no script needed)
 
 User says "log a coffee with Christina yesterday, talked about her dog".
@@ -92,7 +96,8 @@ Stale or misplaced cruft (TODOs in wrong section, duplicates, drift from older r
 
 | Error | Fix |
 |-------|-----|
-| `obsidian: command not found` | Install Obsidian, enable CLI in settings |
+| `obsidian: command not found` | Install Obsidian, enable CLI in settings. On Ricardo's Mac, `scripts.lib.vault` falls back to `/Applications/Obsidian.app/Contents/MacOS/Obsidian` when no `obsidian` symlink is on `PATH`; callers should not need cron-specific PATH injection. |
+| `fam-circles.md not found` with Obsidian installer warning text prepended to the path | Older Obsidian CLI prints warnings to stdout before `vault info=path`; `scripts/lib/vault.py` should parse the last absolute-path-looking line. |
 | `fam-circles.md not found` | Create one in vault with circles yaml block |
 | `multiple fam-circles.md found` | Keep one, delete others |
 | `unknown circle <X>` | Wrong circle name in frontmatter |
