@@ -50,6 +50,37 @@ def call(args: list[str]) -> str:
     return result.stdout.decode(errors="replace")
 
 
+def resolve_case_insensitive(target: Path, vault_root: Path) -> Path | None:
+    """Walk `vault_root` toward `target` matching each path component
+    case-insensitively. Return the on-disk path if every component resolves
+    to exactly one match, else None.
+
+    Used to detect when Obsidian/Templater silently writes a requested file
+    at a case-distinct path (e.g. `Wiki/People/` when caller requested
+    `wiki/People/`) — typically caused by stale plugin metadata seeding the
+    vault's folder index. Triggering that on a case-sensitive filesystem
+    produces duplicate stubs because the polled path never appears.
+    """
+    try:
+        rel = target.relative_to(vault_root)
+    except ValueError:
+        return None
+    current = vault_root
+    for part in rel.parts:
+        if not current.is_dir():
+            return None
+        lower = part.lower()
+        match: Path | None = None
+        for child in current.iterdir():
+            if child.name.lower() == lower:
+                match = child
+                break
+        if match is None:
+            return None
+        current = match
+    return current
+
+
 def iter_files(vault_root: Path, pattern: str) -> Iterator[Path]:
     """Yield files matching `pattern` under `vault_root`, skipping dotfile dirs.
 
@@ -118,6 +149,12 @@ def create_from_template(
     target elsewhere — link-resolution races the file write). Workaround:
     poll for the file on disk after each call; on timeout, re-issue the
     create up to `max_attempts` times before raising.
+
+    After each poll-timeout, also check for a case-distinct sibling of the
+    requested path (e.g. caller asked for `wiki/People/@X.md`, Templater
+    wrote `Wiki/People/@X.md`). On case-sensitive filesystems blindly
+    retrying produces duplicate stubs — raise immediately with the actual
+    path so the caller can surface the underlying Obsidian misconfiguration.
     """
     abs_target = vault_root / file
     deadline_steps = max(1, int(poll_timeout_s / poll_interval_s))
@@ -136,6 +173,18 @@ def create_from_template(
             if abs_target.exists():
                 return attempt
             time.sleep(poll_interval_s)
+        actual = resolve_case_insensitive(abs_target, vault_root)
+        if actual is not None and actual != abs_target:
+            raise ObsidianCliError(
+                f"Templater wrote {actual} but {file.as_posix()} was "
+                f"requested (case-distinct path on a case-sensitive "
+                f"filesystem). Aborting before retries duplicate the stub. "
+                f"Likely cause: Obsidian's vault folder index has a "
+                f"case-distinct entry from stale plugin metadata or a "
+                f"prior mobile-peer session. Check .obsidian/ for paths "
+                f"using the wrong case (github-sync-metadata.json, "
+                f"workspace*.json) and remove or repair them."
+            )
     raise ObsidianCliError(
         f"templater:create-from-template did not materialize {file} after "
         f"{max_attempts} attempts (last error: {last_err})"

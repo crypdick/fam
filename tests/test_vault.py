@@ -48,6 +48,60 @@ def test_iter_files_skips_nested_dotfile_dirs(tmp_path: Path) -> None:
     assert found == ["live.md"]
 
 
+def test_resolve_case_insensitive_returns_actual_path(tmp_path: Path) -> None:
+    (tmp_path / "Wiki" / "People").mkdir(parents=True)
+    actual_file = tmp_path / "Wiki" / "People" / "@X.md"
+    actual_file.write_text("ok")
+    requested = tmp_path / "wiki" / "People" / "@X.md"
+    resolved = vault.resolve_case_insensitive(requested, tmp_path)
+    assert resolved == actual_file
+
+
+def test_resolve_case_insensitive_returns_none_when_absent(tmp_path: Path) -> None:
+    (tmp_path / "wiki" / "People").mkdir(parents=True)
+    requested = tmp_path / "wiki" / "People" / "@Missing.md"
+    assert vault.resolve_case_insensitive(requested, tmp_path) is None
+
+
+def test_resolve_case_insensitive_exact_match_returns_same(tmp_path: Path) -> None:
+    (tmp_path / "wiki" / "People").mkdir(parents=True)
+    f = tmp_path / "wiki" / "People" / "@X.md"
+    f.write_text("ok")
+    assert vault.resolve_case_insensitive(f, tmp_path) == f
+
+
+def test_create_from_template_raises_on_case_distinct_sibling(
+    tmp_path: Path,
+) -> None:
+    """Reproduces the 2026-05-10 Wiki/People incident: caller asks for
+    `wiki/People/@X.md`, Templater writes `Wiki/People/@X.md`. Must abort
+    on the first attempt instead of retrying and duplicating the stub.
+    """
+    vault_root = tmp_path
+    (vault_root / "Wiki" / "People").mkdir(parents=True)
+    requested = Path("wiki/People/@X.md")
+
+    write_count = 0
+
+    def fake_call(args: list[str]) -> str:
+        nonlocal write_count
+        if args and args[0].startswith("templater:"):
+            write_count += 1
+            (vault_root / "Wiki" / "People" / "@X.md").write_text("stub")
+        return ""
+
+    with patch("scripts.lib.vault.call", side_effect=fake_call):
+        with pytest.raises(vault.ObsidianCliError, match="case-distinct"):
+            vault.create_from_template(
+                template=Path("Templates/t.md"),
+                file=requested,
+                vault_root=vault_root,
+                poll_timeout_s=0.05,
+                poll_interval_s=0.01,
+            )
+    assert write_count == 1, "must abort before retrying; got duplicate writes"
+
+
 @patch("scripts.lib.vault.subprocess.run")
 def test_call_raises_on_nonzero(mock_run: MagicMock) -> None:
     mock_run.return_value = _completed(stderr="Vault not found\n", returncode=1)
