@@ -12,6 +12,8 @@ from pathlib import Path
 
 import yaml
 
+from . import vault as vault_mod
+
 CIRCLES_FILENAME = "fam-circles.md"
 _YAML_BLOCK_RE = re.compile(r"```yaml\s*\n(.*?)```", re.DOTALL)
 
@@ -35,7 +37,7 @@ class Config:
 
 
 def load(vault_root: Path) -> Config:
-    matches = sorted(vault_root.rglob(CIRCLES_FILENAME))
+    matches = sorted(vault_mod.iter_files(vault_root, CIRCLES_FILENAME))
     if not matches:
         raise ConfigError(
             f"{CIRCLES_FILENAME} not found anywhere under {vault_root}. "

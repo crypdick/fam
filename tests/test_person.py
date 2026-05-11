@@ -13,6 +13,15 @@ def test_discover_finds_at_prefix_files(vault_root: Path) -> None:
     assert paths == ["@Alice.md", "@Bob.md", "@Carol.md", "@Dan.md", "@Eve.md"]
 
 
+def test_discover_skips_dotfile_dirs(vault_root: Path) -> None:
+    """Syncthing's `.stversions/` mirrors `@*.md` notes — must not duplicate."""
+    stversion = vault_root / ".stversions" / "People" / "@Alice.md"
+    stversion.parent.mkdir(parents=True)
+    stversion.write_text((vault_root / "People" / "@Alice.md").read_text())
+    discovered = [p.name for p in person.discover(vault_root)]
+    assert discovered.count("@Alice.md") == 1
+
+
 def test_load_alice(vault_root: Path) -> None:
     p = person.load(vault_root / "People" / "@Alice.md")
     assert p.name == "Alice"

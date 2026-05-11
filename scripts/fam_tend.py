@@ -136,13 +136,10 @@ def _classify(path: Path) -> tuple[bool, date | None]:
 
 def _scan_at_wikilinks(vault_root: Path) -> set[str]:
     """Return the set of `@`-prefixed wikilink basenames mentioned anywhere in
-    the vault. Skips dotfile dirs (`.obsidian`, `.trash`, `.git`, ...).
+    the vault. Skips dotfile dirs via `vault.iter_files`.
     """
     found: set[str] = set()
-    for md in vault_root.rglob("*.md"):
-        rel = md.relative_to(vault_root)
-        if any(part.startswith(".") for part in rel.parts):
-            continue
+    for md in vault.iter_files(vault_root, "*.md"):
         try:
             text = md.read_text(encoding="utf-8")
         except OSError:

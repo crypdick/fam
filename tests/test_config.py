@@ -30,6 +30,15 @@ def test_load_aborts_when_multiple_matches(vault_root: Path) -> None:
         config.load(vault_root)
 
 
+def test_load_ignores_dotfile_dir_duplicates(vault_root: Path) -> None:
+    """Syncthing's `.stversions/` mirrors vault contents — must not collide."""
+    stversion = vault_root / ".stversions" / "fam-circles.md"
+    stversion.parent.mkdir()
+    stversion.write_text((vault_root / "fam-circles.md").read_text())
+    cfg = config.load(vault_root)
+    assert cfg.path == vault_root / "fam-circles.md"
+
+
 def test_load_aborts_on_no_yaml_block(vault_root: Path) -> None:
     (vault_root / "fam-circles.md").write_text("# fam — circles\n\nNo yaml here.\n")
     with pytest.raises(config.ConfigError, match="no yaml"):

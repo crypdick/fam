@@ -10,6 +10,7 @@ import os
 import shutil
 import subprocess
 import time
+from collections.abc import Iterator
 from pathlib import Path
 
 MACOS_OBSIDIAN_CLI = Path("/Applications/Obsidian.app/Contents/MacOS/Obsidian")
@@ -47,6 +48,21 @@ def call(args: list[str]) -> str:
         stderr = result.stderr.decode(errors="replace")
         raise ObsidianCliError(stderr.strip() or f"obsidian exited {result.returncode}")
     return result.stdout.decode(errors="replace")
+
+
+def iter_files(vault_root: Path, pattern: str) -> Iterator[Path]:
+    """Yield files matching `pattern` under `vault_root`, skipping dotfile dirs.
+
+    Excludes any path containing a component starting with `.` (e.g.
+    `.obsidian/`, `.trash/`, `.stversions/`, `.git/`). Syncthing's
+    `.stversions/` mirror in particular will otherwise produce duplicate
+    matches of every vault file and break uniqueness contracts.
+    """
+    for p in vault_root.rglob(pattern):
+        rel = p.relative_to(vault_root)
+        if any(part.startswith(".") for part in rel.parts):
+            continue
+        yield p
 
 
 def get_vault_root() -> Path:
