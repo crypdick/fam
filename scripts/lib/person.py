@@ -13,6 +13,8 @@ from typing import Any
 
 import frontmatter
 
+from . import vault as vault_mod
+
 CIRCLES = ("reference", "passive", "inner", "close", "orbit", "distant")
 FAM_FIELDS = (
     "circle",
@@ -44,7 +46,7 @@ class Person:
 
 def discover(vault_root: Path) -> list[Path]:
     """All `@*.md` files under vault_root."""
-    return sorted(p for p in vault_root.rglob("@*.md") if p.is_file())
+    return sorted(p for p in vault_mod.iter_files(vault_root, "@*.md") if p.is_file())
 
 
 def _coerce_date(value: Any, file: Path, field_name: str) -> date | None:

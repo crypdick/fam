@@ -11,7 +11,7 @@
       "name": "fam",
       "source": "./",
       "description": "Personal CRM driven by an agent. Plain markdown inside an Obsidian vault.",
-      "version": "0.3.3"
+      "version": "0.3.4"
     }
   ]
 }

@@ -27,6 +27,27 @@ def test_call_returns_stdout(mock_run: MagicMock) -> None:
     assert out == "1.12.7\n"
 
 
+def test_iter_files_skips_dotfile_dirs(tmp_path: Path) -> None:
+    (tmp_path / "a.md").write_text("ok")
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "b.md").write_text("ok")
+    (tmp_path / ".stversions").mkdir()
+    (tmp_path / ".stversions" / "a.md").write_text("backup")
+    (tmp_path / ".obsidian").mkdir()
+    (tmp_path / ".obsidian" / "c.md").write_text("plugin")
+    found = sorted(p.relative_to(tmp_path).as_posix() for p in vault.iter_files(tmp_path, "*.md"))
+    assert found == ["a.md", "sub/b.md"]
+
+
+def test_iter_files_skips_nested_dotfile_dirs(tmp_path: Path) -> None:
+    nested = tmp_path / "wiki" / ".trash" / "old.md"
+    nested.parent.mkdir(parents=True)
+    nested.write_text("trashed")
+    (tmp_path / "wiki" / "live.md").write_text("ok")
+    found = sorted(p.name for p in vault.iter_files(tmp_path, "*.md"))
+    assert found == ["live.md"]
+
+
 @patch("scripts.lib.vault.subprocess.run")
 def test_call_raises_on_nonzero(mock_run: MagicMock) -> None:
     mock_run.return_value = _completed(stderr="Vault not found\n", returncode=1)
