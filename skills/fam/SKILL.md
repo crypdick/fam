@@ -55,6 +55,10 @@ Repo CLI equivalents exist as console scripts when running from the repo with uv
 
 Important: even when executing from the `fam` repo, `fam-circles.md` is **not** expected to live in the repo. The CLI must resolve the Obsidian vault path first, then search for the unique `fam-circles.md` anywhere under that vault. Do not search only under `/Users/ricardo/src/PERSONAL/fam` or the current working directory.
 
+## Cron automation
+
+For recurring fam reminders, use a Hermes pre-run wake gate like `/Users/ricardo/.hermes/scripts/cron-fam-afternoon-gate.py`: run `uv --project /Users/ricardo/src/PERSONAL/fam run fam-today --json`, parse the JSON, and emit exactly `{"wakeAgent": false}` when the queue is empty. This skips the LLM and prevents no-op Telegram alerts like “Nobody is due today.” Only wake the agent for non-empty queues or real failures. In cron subprocesses, remove Hermes' `VIRTUAL_ENV` before calling `uv` to avoid project-venv mismatch warnings.
+
 ## Logging touches (no script needed)
 
 User says "log a coffee with Christina yesterday, talked about her dog".
