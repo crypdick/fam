@@ -170,6 +170,18 @@ def create_from_template(
             last_err = e
             continue
         for _ in range(deadline_steps):
+            actual = resolve_case_insensitive(abs_target, vault_root)
+            if actual is not None and actual != abs_target:
+                raise ObsidianCliError(
+                    f"Templater wrote {actual} but {file.as_posix()} was "
+                    f"requested (case-distinct path on a case-sensitive "
+                    f"filesystem). Aborting before retries duplicate the stub. "
+                    f"Likely cause: Obsidian's vault folder index has a "
+                    f"case-distinct entry from stale plugin metadata or a "
+                    f"prior mobile-peer session. Check .obsidian/ for paths "
+                    f"using the wrong case (github-sync-metadata.json, "
+                    f"workspace*.json) and remove or repair them."
+                )
             if abs_target.exists():
                 return attempt
             time.sleep(poll_interval_s)
