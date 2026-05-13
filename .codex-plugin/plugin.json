@@ -1,0 +1,29 @@
+{
+  "name": "fam",
+  "version": "0.3.5",
+  "description": "Personal CRM driven by an agent. Plain markdown inside an Obsidian vault.",
+  "author": {
+    "name": "Ricardo Decal"
+  },
+  "license": "MIT",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Fam",
+    "shortDescription": "Maintain a personal CRM in an Obsidian vault",
+    "longDescription": "Agent workflows for tending a plain-markdown personal CRM, reviewing today's relationship actions, and validating vault data.",
+    "developerName": "Ricardo Decal",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Review today's relationship follow-ups",
+      "Validate my Fam vault",
+      "Tend stale personal CRM notes"
+    ],
+    "brandColor": "#2F6F4E",
+    "screenshots": []
+  }
+}
