@@ -58,7 +58,7 @@ def _coerce_date(value: Any, file: Path, field_name: str) -> date | None:
 
 
 def load(path: Path) -> Person:
-    post = frontmatter.load(str(path))
+    post = frontmatter.loads(vault_mod.read_text(path, encoding="utf-8"))
     fm = dict(post.metadata)
     name = path.stem.lstrip("@")
     circle = fm.pop("circle", None)

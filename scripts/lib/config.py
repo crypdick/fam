@@ -47,7 +47,7 @@ def load(vault_root: Path) -> Config:
         joined = "\n  ".join(str(m) for m in matches)
         raise ConfigError(f"multiple {CIRCLES_FILENAME} found:\n  {joined}")
     path = matches[0]
-    text = path.read_text(encoding="utf-8")
+    text = vault_mod.read_text(path, encoding="utf-8")
     block = _YAML_BLOCK_RE.search(text)
     if not block:
         raise ConfigError(f"no yaml code block in {path}")

@@ -59,6 +59,25 @@ class IndexSyncResult:
     skipped_reason: str | None = None
 
 
+@dataclass
+class TendRun:
+    """Full outcome of a tend run.
+
+    Iterates as the historical `(stubs, index_sync, results)` tuple so older
+    callers that unpack three values continue to work.
+    """
+
+    stubs: StubResult
+    index_sync: IndexSyncResult
+    results: list[TendResult]
+    validation_errors: list[str] = field(default_factory=list)
+
+    def __iter__(self):
+        yield self.stubs
+        yield self.index_sync
+        yield self.results
+
+
 _PERSON_BULLET_RE = re.compile(r"^\s*-\s*\[\[@[^\]|#]+")
 
 
@@ -141,7 +160,7 @@ def _scan_at_wikilinks(vault_root: Path) -> set[str]:
     found: set[str] = set()
     for md in vault.iter_files(vault_root, "*.md"):
         try:
-            text = md.read_text(encoding="utf-8")
+            text = vault.read_text(md, encoding="utf-8")
         except OSError:
             continue
         for raw in _WIKILINK_RE.findall(text):
@@ -205,7 +224,10 @@ def _sync_people_index(vault_root: Path, cfg: config_mod.Config) -> IndexSyncRes
     index_md = folder / "index.md"
     if not index_md.is_file():
         return IndexSyncResult(skipped_reason="index.md missing")
-    text = index_md.read_text(encoding="utf-8")
+    try:
+        text = vault.read_text(index_md, encoding="utf-8")
+    except OSError as e:
+        return IndexSyncResult(skipped_reason=f"index.md unreadable: {e}")
     existing = _existing_link_basenames(text)
     persons = sorted(p.stem for p in folder.glob("@*.md") if p.is_file())
     missing = [name for name in persons if name not in existing]
@@ -226,7 +248,7 @@ def _sync_people_index(vault_root: Path, cfg: config_mod.Config) -> IndexSyncRes
 
 def tend(
     *, person_name: str | None = None
-) -> tuple[StubResult, IndexSyncResult, list[TendResult]]:
+) -> TendRun:
     vault_root = vault.get_vault_root()
     cfg = config_mod.load(vault_root)
     stubs = _create_missing_stubs(vault_root, cfg) if person_name is None else StubResult()
@@ -240,8 +262,16 @@ def tend(
         if person_name is None or p.stem.lstrip("@") == person_name
     ]
     results: list[TendResult] = []
+    validation_errors: list[str] = []
     for target_path in targets:
-        loaded = person.load(target_path)
+        try:
+            loaded = person.load(target_path)
+        except person.PersonSchemaError as e:
+            validation_errors.append(str(e))
+            continue
+        except OSError as e:
+            validation_errors.append(f"{target_path}: unreadable person note: {e}")
+            continue
         body = loaded.body
         body = _ensure_section(body, _LOGGED_HEADING)
         body = _ensure_section(body, _OTHER_HEADING)
@@ -274,7 +304,12 @@ def tend(
         results.append(
             TendResult(person=loaded.name, added_logged=added_logged, added_other=added_other)
         )
-    return stubs, index_sync, results
+    return TendRun(
+        stubs=stubs,
+        index_sync=index_sync,
+        results=results,
+        validation_errors=validation_errors,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -282,20 +317,30 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--person", type=str, default=None)
     parser.add_argument("--dry-run", action="store_true", help="not implemented in MVP; reserved")
     args = parser.parse_args(argv)
-    stubs, index_sync, results = tend(person_name=args.person)
+    run = tend(person_name=args.person)
+    stubs = run.stubs
+    index_sync = run.index_sync
+    results = run.results
     for name in stubs.created:
         marker = " (retried)" if name in stubs.retried else ""
         print(f"created stub: {name}{marker}")
     for failure in stubs.failed:
-        print(f"FAILED stub: {failure}")
+        print(f"WARNING: failed stub creation: {failure}", file=sys.stderr)
     for name in index_sync.added:
         print(f"indexed: {name}")
+    if index_sync.skipped_reason and index_sync.skipped_reason.startswith("index.md unreadable"):
+        print(f"WARNING: skipped people index sync: {index_sync.skipped_reason}", file=sys.stderr)
     for r in results:
         added = len(r.added_logged) + len(r.added_other)
         if added:
             print(f"{r.person}: +{len(r.added_logged)} logged, +{len(r.added_other)} other")
-    if stubs.failed:
-        return 1
+    if run.validation_errors:
+        print(
+            f"WARNING: skipped {len(run.validation_errors)} invalid person note(s) during fam-tend:",
+            file=sys.stderr,
+        )
+        for err in run.validation_errors:
+            print(f"  {err}", file=sys.stderr)
     return 0
 
 

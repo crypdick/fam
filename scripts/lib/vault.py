@@ -50,6 +50,17 @@ def call(args: list[str]) -> str:
     return result.stdout.decode(errors="replace")
 
 
+def read_text(path: Path, *, encoding: str = "utf-8") -> str:
+    """Read text, materializing iCloud dataless files on macOS if needed."""
+    try:
+        return path.read_text(encoding=encoding)
+    except OSError as e:
+        if e.errno != 11 or shutil.which("brctl") is None:
+            raise
+        subprocess.run(["brctl", "download", str(path)], capture_output=True, check=False)
+        return path.read_text(encoding=encoding)
+
+
 def resolve_case_insensitive(target: Path, vault_root: Path) -> Path | None:
     """Walk `vault_root` toward `target` matching each path component
     case-insensitively. Return the on-disk path if every component resolves

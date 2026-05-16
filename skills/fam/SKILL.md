@@ -106,5 +106,6 @@ Stale or misplaced cruft (TODOs in wrong section, duplicates, drift from older r
 | `multiple fam-circles.md found` | Keep one, delete others |
 | `unknown circle <X>` | Wrong circle name in frontmatter |
 | `cadence_days_override must be int > 0` | Fix or remove field |
+| `OSError: [Errno 11] Resource deadlock avoided` when reading vault notes | macOS/iCloud dataless file. Repo should read through `scripts.lib.vault.read_text()`, which runs `brctl download` then retries. For one-off manual repair: `brctl download '<path>'`. |
 
 Surface verbatim to user.

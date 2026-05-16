@@ -377,3 +377,31 @@ def test_sync_dedups_against_path_prefixed_wikilinks(
     _, sync, _ = fam_tend.tend()
     assert "@Alice" not in sync.added
     assert sorted(sync.added) == ["@Bob", "@Carol", "@Dan", "@Eve"]
+
+
+@patch("scripts.lib.vault.get_vault_root")
+@patch("scripts.lib.vault.backlinks", return_value=[])
+def test_tend_skips_invalid_person_and_reports_warning(_bk, mock_root, vault_root: Path) -> None:
+    """Invalid person frontmatter should warn and not abort the whole run."""
+    mock_root.return_value = vault_root
+    broken = vault_root / "People" / "@Broken.md"
+    broken.write_text("---\n# missing circle\n---\n\n## Logged contacts\n")
+    from scripts import fam_tend
+    run = fam_tend.tend()
+    assert any("@Broken.md" in err and "missing required field `circle`" in err for err in run.validation_errors)
+    assert "Broken" not in {r.person for r in run.results}
+    assert {"Alice", "Bob", "Carol", "Dan", "Eve"}.issubset({r.person for r in run.results})
+
+
+@patch("scripts.lib.vault.get_vault_root")
+@patch("scripts.lib.vault.backlinks", return_value=[])
+def test_tend_main_prints_validation_warning_and_exits_zero(_bk, mock_root, vault_root: Path, capsys) -> None:
+    """Validation warnings should be visible without making cron treat the job as failed."""
+    mock_root.return_value = vault_root
+    broken = vault_root / "People" / "@Broken.md"
+    broken.write_text("---\ncircle: missing\n---\n")
+    from scripts import fam_tend
+    assert fam_tend.main([]) == 0
+    captured = capsys.readouterr()
+    assert "WARNING: skipped 1 invalid person note" in captured.err
+    assert "unknown circle 'missing'" in captured.err
