@@ -107,7 +107,7 @@ def test_today_includes_periodic_muted_with_next_action_at(
 
 
 @patch("scripts.lib.vault.get_vault_root")
-def test_today_sets_missing_circle_to_reference_and_excludes_person(
+def test_today_sets_missing_circle_to_reference_and_uses_circle_queue_rules(
     mock_root, vault_root: Path
 ) -> None:
     mock_root.return_value = vault_root

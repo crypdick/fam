@@ -48,7 +48,7 @@ def compute_rows(
         s = score.score(p, last=last, today=today, config=cfg)
         if not include_below_threshold and not score.in_queue(p, s, cfg):
             continue
-        # passive always excluded (score == -inf and threshold is None)
+        # Any no-cadence circle (for example reference/passive) stays out of the queue.
         if cfg.circles[p.circle].cadence_days is None:
             continue
         days = (today - last).days if last else None
