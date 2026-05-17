@@ -5,6 +5,20 @@ description: Personal CRM. Ranks people due for contact. Reads/writes plain mark
 
 # fam — Personal CRM
 
+## Telegram Topic Behavior
+
+When this skill is auto-loaded in a fam Telegram topic, treat that topic as the place for using the `fam` skill. Read this `SKILL.md` and use it as the operating guide for the session.
+
+Some fam topics receive periodic cron output. If Ricardo mentions something that needs prior cron context, such as `mark the first one done`, `snooze number 2`, `log that reach-out`, or `who was due today`, inspect the latest relevant cron output before acting:
+
+```bash
+ls -t ~/.hermes/cron/output/c1faff29b39b/*.md | head -5   # fam afternoon due queue
+ls -t ~/.hermes/cron/output/3f73de380c65/*.md | head -5   # fam tend daily
+```
+
+Then read the newest matching output file and resolve Ricardo's shorthand against that context. Do not guess which person or action he means from the short Telegram message alone.
+
+
 ## Prerequisites
 
 - Obsidian app installed + running
