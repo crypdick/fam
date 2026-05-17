@@ -43,6 +43,8 @@ Optional:
 
 User's other frontmatter passes through. Don't touch.
 
+Design invariant: reference/passive/no-cadence exclusion should flow through the configured circle semantics (`cadence_days: null` / existing queue rules), not through ad-hoc per-command "exclude from alerts" special cases. If a command repairs missing `circle` by setting `reference`, let the reference circle rules do the exclusion.
+
 ## Commands
 
 | Command | Use |
