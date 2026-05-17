@@ -36,7 +36,7 @@ def compute_rows(
     cfg = config_mod.load(vault_root)
     rows: list[Row] = []
     for path in person.discover(vault_root):
-        p = person.load(path)
+        p = person.load_or_set_reference_circle(path)
         if circle is not None and p.circle != circle:
             continue
         if not p.periodic_contact_reminders and p.next_action_at is None:

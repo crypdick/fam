@@ -47,7 +47,7 @@ User's other frontmatter passes through. Don't touch.
 
 | Command | Use |
 |---------|-----|
-| `/fam-today` | Show ranked queue. Default = above-threshold only. `--all` = everyone overdue. `--circle X` = filter. `--json` = structured. |
+| `/fam-today` | Show ranked queue. Default = above-threshold only. `--all` = everyone overdue. `--circle X` = filter. `--json` = structured. If a person note is missing `circle`, it silently injects `circle: reference` and excludes them from alerts. |
 | `/fam-tend` | Garden vault. (1) Scan whole vault for unresolved `[[@Name]]` links → create person stubs via Templater. (2) Sync `<people_folder>/index.md` with `- [[@Name]] — contact` entries for any persons missing from it. (3) Backlinks → `## Logged contacts` (dated) + `## Other references` (TODO summaries to fill). Idempotent. |
 | `/fam-validate` | Check config + frontmatter. |
 

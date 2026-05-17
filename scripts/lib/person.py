@@ -59,6 +59,19 @@ def _coerce_date(value: Any, file: Path, field_name: str) -> date | None:
 
 def load(path: Path) -> Person:
     post = frontmatter.loads(vault_mod.read_text(path, encoding="utf-8"))
+    return _load_post(path, post)
+
+
+def load_or_set_reference_circle(path: Path) -> Person:
+    """Load a person, defaulting missing `circle` frontmatter to `reference`."""
+    post = frontmatter.loads(vault_mod.read_text(path, encoding="utf-8"))
+    if "circle" not in post.metadata:
+        post.metadata = {"circle": "reference", **post.metadata}
+        path.write_text(frontmatter.dumps(post), encoding="utf-8")
+    return _load_post(path, post)
+
+
+def _load_post(path: Path, post: frontmatter.Post) -> Person:
     fm = dict(post.metadata)
     name = path.stem.lstrip("@")
     circle = fm.pop("circle", None)

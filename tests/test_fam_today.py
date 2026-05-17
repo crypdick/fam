@@ -104,3 +104,21 @@ def test_today_includes_periodic_muted_with_next_action_at(
     from scripts import fam_today
     rows = fam_today.compute_rows(today=date(2026, 5, 15), include_below_threshold=False)
     assert any(r.name == "Greta" for r in rows)
+
+
+@patch("scripts.lib.vault.get_vault_root")
+def test_today_sets_missing_circle_to_reference_and_excludes_person(
+    mock_root, vault_root: Path
+) -> None:
+    mock_root.return_value = vault_root
+    missing_circle = vault_root / "People" / "@Greta.md"
+    missing_circle.write_text("---\nprofession: dev\n---\n\n## Logged contacts\n")
+
+    from scripts import fam_today
+
+    rows = fam_today.compute_rows(today=date(2026, 5, 15), include_below_threshold=True)
+
+    assert all(r.name != "Greta" for r in rows)
+    text = missing_circle.read_text()
+    assert "circle: reference" in text
+    assert "profession: dev" in text
