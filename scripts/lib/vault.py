@@ -110,9 +110,16 @@ def iter_files(vault_root: Path, pattern: str) -> Iterator[Path]:
 def get_vault_root() -> Path:
     """Return the active vault's filesystem root.
 
-    Older Obsidian installers can print advisory text to stdout before the
-    actual path. Treat the last absolute-path-looking line as the vault root.
+    Prefer explicit environment configuration in automation so scheduled jobs
+    do not depend on Obsidian's Electron CLI being responsive. Older Obsidian
+    installers can also print advisory text to stdout before the actual path;
+    when falling back to the CLI, treat the last absolute-path-looking line as
+    the vault root.
     """
+    for env_name in ("OBSIDIAN_VAULT_PATH", "OBSIDIAN_VAULT_ROOT"):
+        configured = os.environ.get(env_name)
+        if configured:
+            return Path(configured).expanduser()
     out = call(["vault", "info=path"])
     for line in reversed(out.splitlines()):
         text = line.strip()

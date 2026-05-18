@@ -153,13 +153,26 @@ def test_call_uses_macos_obsidian_app_binary_when_obsidian_not_on_path(
 
 
 @patch("scripts.lib.vault.call")
-def test_get_vault_root_strips_whitespace(mock_call: MagicMock) -> None:
+def test_get_vault_root_prefers_env_path(mock_call: MagicMock, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OBSIDIAN_VAULT_PATH", "/tmp/MyVault")
+    assert vault.get_vault_root() == Path("/tmp/MyVault")
+    mock_call.assert_not_called()
+
+
+@patch("scripts.lib.vault.call")
+def test_get_vault_root_strips_whitespace(mock_call: MagicMock, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("OBSIDIAN_VAULT_PATH", raising=False)
+    monkeypatch.delenv("OBSIDIAN_VAULT_ROOT", raising=False)
     mock_call.return_value = "/home/user/Documents/MyVault\n"
     assert vault.get_vault_root() == Path("/home/user/Documents/MyVault")
 
 
 @patch("scripts.lib.vault.call")
-def test_get_vault_root_ignores_obsidian_cli_stdout_warnings(mock_call: MagicMock) -> None:
+def test_get_vault_root_ignores_obsidian_cli_stdout_warnings(
+    mock_call: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("OBSIDIAN_VAULT_PATH", raising=False)
+    monkeypatch.delenv("OBSIDIAN_VAULT_ROOT", raising=False)
     mock_call.return_value = (
         "2026-05-04 20:52:39 Loading updated app package "
         "/Users/ricardo/Library/Application Support/obsidian/obsidian-1.12.7.asar\n"
