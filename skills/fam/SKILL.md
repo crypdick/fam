@@ -118,7 +118,8 @@ Stale or misplaced cruft (TODOs in wrong section, duplicates, drift from older r
 |-------|-----|
 | `obsidian: command not found` | Install Obsidian, enable CLI in settings. On Ricardo's Mac, `scripts.lib.vault` falls back to `/Applications/Obsidian.app/Contents/MacOS/Obsidian` when no `obsidian` symlink is on `PATH`; callers should not need cron-specific PATH injection. |
 | `fam-circles.md not found` with Obsidian installer warning text prepended to the path | Older Obsidian CLI prints warnings to stdout before `vault info=path`; `scripts/lib/vault.py` should parse the last absolute-path-looking line. |
-| `fam-circles.md not found` | Create one in vault with circles yaml block |
+| `fam-circles.md not found` | First verify the file actually exists. If it exists but cron/uv reports missing, suspect macOS TCC/Documents permissions for the process running `uv` (or its parent Hermes gateway/launchd service), not missing data. Grant Full Disk Access / Documents access and rerun. |
+| `FAM_CIRCLES_PATH points to unreadable fam-circles.md` | macOS TCC/iCloud access failure. Grant Full Disk Access / Documents permission to the cron/uv/Hermes gateway process, then rerun. |
 | `multiple fam-circles.md found` | Keep one, delete others |
 | `unknown circle <X>` | Wrong circle name in frontmatter |
 | `cadence_days_override must be int > 0` | Fix or remove field |

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import re
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -44,7 +45,19 @@ def load(vault_root: Path) -> Config:
         path = Path(configured_path).expanduser()
         if not path.is_absolute():
             path = vault_root / path
-        if not path.is_file():
+        try:
+            mode = path.stat().st_mode
+        except FileNotFoundError:
+            raise ConfigError(
+                f"{FAM_CIRCLES_PATH_ENV} points to missing {CIRCLES_FILENAME}: {path}"
+            )
+        except OSError as e:
+            raise ConfigError(
+                f"{FAM_CIRCLES_PATH_ENV} points to unreadable {CIRCLES_FILENAME}: {path} "
+                f"({type(e).__name__}: {e}). On macOS cron/uv may need Full Disk Access "
+                f"or Documents permission."
+            ) from e
+        if not stat.S_ISREG(mode):
             raise ConfigError(
                 f"{FAM_CIRCLES_PATH_ENV} points to missing {CIRCLES_FILENAME}: {path}"
             )

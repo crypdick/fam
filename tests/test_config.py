@@ -60,6 +60,16 @@ def test_load_rejects_missing_explicit_circles_path(
         config.load(vault_root)
 
 
+def test_load_reports_unreadable_explicit_circles_path(
+    vault_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("FAM_CIRCLES_PATH", "fam-circles.md")
+    monkeypatch.setattr(Path, "stat", lambda _self: (_ for _ in ()).throw(PermissionError("denied")))
+
+    with pytest.raises(config.ConfigError, match="Full Disk Access|Documents permission"):
+        config.load(vault_root)
+
+
 def test_load_aborts_on_no_yaml_block(vault_root: Path) -> None:
     (vault_root / "fam-circles.md").write_text("# fam — circles\n\nNo yaml here.\n")
     with pytest.raises(config.ConfigError, match="no yaml"):
