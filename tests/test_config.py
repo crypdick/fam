@@ -39,6 +39,27 @@ def test_load_ignores_dotfile_dir_duplicates(vault_root: Path) -> None:
     assert cfg.path == vault_root / "fam-circles.md"
 
 
+def test_load_respects_explicit_circles_path(vault_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    nested = vault_root / "wiki" / "People" / "fam-circles.md"
+    nested.parent.mkdir(parents=True)
+    nested.write_text((vault_root / "fam-circles.md").read_text())
+    (vault_root / "fam-circles.md").unlink()
+    monkeypatch.setenv("FAM_CIRCLES_PATH", "wiki/People/fam-circles.md")
+
+    cfg = config.load(vault_root)
+
+    assert cfg.path == nested
+
+
+def test_load_rejects_missing_explicit_circles_path(
+    vault_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("FAM_CIRCLES_PATH", "wiki/People/fam-circles.md")
+
+    with pytest.raises(config.ConfigError, match="FAM_CIRCLES_PATH points to missing"):
+        config.load(vault_root)
+
+
 def test_load_aborts_on_no_yaml_block(vault_root: Path) -> None:
     (vault_root / "fam-circles.md").write_text("# fam — circles\n\nNo yaml here.\n")
     with pytest.raises(config.ConfigError, match="no yaml"):

@@ -6,6 +6,7 @@ definitions.
 """
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,6 +16,7 @@ import yaml
 from . import vault as vault_mod
 
 CIRCLES_FILENAME = "fam-circles.md"
+FAM_CIRCLES_PATH_ENV = "FAM_CIRCLES_PATH"
 _YAML_BLOCK_RE = re.compile(r"```yaml\s*\n(.*?)```", re.DOTALL)
 
 
@@ -37,6 +39,21 @@ class Config:
 
 
 def load(vault_root: Path) -> Config:
+    configured_path = os.environ.get(FAM_CIRCLES_PATH_ENV)
+    if configured_path:
+        path = Path(configured_path).expanduser()
+        if not path.is_absolute():
+            path = vault_root / path
+        if not path.is_file():
+            raise ConfigError(
+                f"{FAM_CIRCLES_PATH_ENV} points to missing {CIRCLES_FILENAME}: {path}"
+            )
+        if path.name != CIRCLES_FILENAME:
+            raise ConfigError(
+                f"{FAM_CIRCLES_PATH_ENV} must point to {CIRCLES_FILENAME}, got {path}"
+            )
+        return _parse(path)
+
     matches = sorted(vault_mod.iter_files(vault_root, CIRCLES_FILENAME))
     if not matches:
         raise ConfigError(
@@ -46,7 +63,10 @@ def load(vault_root: Path) -> Config:
     if len(matches) > 1:
         joined = "\n  ".join(str(m) for m in matches)
         raise ConfigError(f"multiple {CIRCLES_FILENAME} found:\n  {joined}")
-    path = matches[0]
+    return _parse(matches[0])
+
+
+def _parse(path: Path) -> Config:
     text = vault_mod.read_text(path, encoding="utf-8")
     block = _YAML_BLOCK_RE.search(text)
     if not block:
