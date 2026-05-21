@@ -5,18 +5,13 @@ description: Personal CRM. Ranks people due for contact. Reads/writes plain mark
 
 # fam — Personal CRM
 
-## Telegram Topic Behavior
+## Topic Behavior
 
-When this skill is auto-loaded in a fam Telegram topic, treat that topic as the place for using the `fam` skill. Read this `SKILL.md` and use it as the operating guide for the session.
+When this skill is auto-loaded in a fam-specific chat/topic, treat that topic as the place for using the `fam` skill. Read this `SKILL.md` and use it as the operating guide for the session.
 
-Some fam topics receive periodic cron output. If Ricardo mentions something that needs prior cron context, such as `mark the first one done`, `snooze number 2`, `log that reach-out`, or `who was due today`, inspect the latest relevant cron output before acting:
+Some deployments route periodic cron output into the same chat/topic. If the user mentions something that needs prior cron context, such as `mark the first one done`, `snooze number 2`, `log that reach-out`, or `who was due today`, inspect the latest relevant cron output before acting. Do not hard-code personal cron job IDs in this public skill; discover the right job/output from the local Hermes cron list or from deployment-local notes.
 
-```bash
-ls -t ~/.hermes/cron/output/c1faff29b39b/*.md | head -5   # fam afternoon due queue
-ls -t ~/.hermes/cron/output/3f73de380c65/*.md | head -5   # fam tend daily
-```
-
-Then read the newest matching output file and resolve Ricardo's shorthand against that context. Do not guess which person or action he means from the short Telegram message alone.
+Then read the newest matching output file and resolve the user's shorthand against that context. Do not guess which person or action they mean from a short chat message alone.
 
 
 ## Prerequisites
@@ -69,11 +64,11 @@ Design invariant: reference/passive/no-cadence exclusion should flow through the
 
 Repo CLI equivalents exist as console scripts when running from the repo with uv: `uv run fam-tend`, `uv run fam-today`, and `uv run fam-validate`. Prefer these stable entry points over `python scripts/fam_*.py` in automation.
 
-Important: even when executing from the `fam` repo, `fam-circles.md` is **not** expected to live in the repo. The CLI must resolve the Obsidian vault path first, then search for the unique `fam-circles.md` anywhere under that vault. Do not search only under `/Users/ricardo/src/PERSONAL/fam` or the current working directory.
+Important: even when executing from the `fam` repo, `fam-circles.md` is **not** expected to live in the repo. The CLI must resolve the Obsidian vault path first, then search for the unique `fam-circles.md` anywhere under that vault. Do not search only under the repo root or the current working directory.
 
 ## Cron automation
 
-For recurring fam reminders, use a Hermes pre-run wake gate like `/Users/ricardo/.hermes/scripts/cron-fam-afternoon-gate.py`: run `/Users/ricardo/.local/bin/uv --project /Users/ricardo/src/PERSONAL/fam run fam-today --json`, parse the JSON, and emit exactly `{"wakeAgent": false}` when the queue is empty. This skips the LLM and prevents no-op Telegram alerts like “Nobody is due today.” Only wake the agent for non-empty queues or real failures. In cron subprocesses, remove Hermes' `VIRTUAL_ENV` before calling `uv` to avoid project-venv mismatch warnings. For cron jobs with known canonical paths, set `OBSIDIAN_VAULT_PATH` (currently `/Users/ricardo/Documents/obsidian`) so scheduled runs do not depend on Obsidian's Electron CLI being responsive, and set `FAM_CIRCLES_PATH` (currently `/Users/ricardo/Documents/obsidian/wiki/People/fam-circles.md`) so a transient recursive vault scan failure cannot masquerade as missing config.
+For recurring fam reminders, use a Hermes pre-run wake gate script under the local Hermes scripts directory (for example `~/.hermes/scripts/<deployment-specific-fam-gate>.py`). Run the repo's stable CLI entry point with an absolute `uv` path and a deployment-local project path, parse the JSON, and emit exactly `{"wakeAgent": false}` when the queue is empty. This skips the LLM and prevents no-op chat alerts like “Nobody is due today.” Only wake the agent for non-empty queues or real failures. In cron subprocesses, remove Hermes' `VIRTUAL_ENV` before calling `uv` to avoid project-venv mismatch warnings. If a deployment has known canonical paths, set `OBSIDIAN_VAULT_PATH` and `FAM_CIRCLES_PATH` in the private cron wrapper or local environment, not in this public skill. This avoids dependency on Obsidian's Electron CLI responsiveness and prevents transient recursive vault-scan failures from masquerading as missing config.
 
 ## Logging touches (no script needed)
 
@@ -116,7 +111,7 @@ Stale or misplaced cruft (TODOs in wrong section, duplicates, drift from older r
 
 | Error | Fix |
 |-------|-----|
-| `obsidian: command not found` | Install Obsidian, enable CLI in settings. On Ricardo's Mac, `scripts.lib.vault` falls back to `/Applications/Obsidian.app/Contents/MacOS/Obsidian` when no `obsidian` symlink is on `PATH`; callers should not need cron-specific PATH injection. |
+| `obsidian: command not found` | Install Obsidian, enable CLI in settings. The repo's vault library may provide platform-specific fallbacks; callers should not need cron-specific PATH injection. |
 | `fam-circles.md not found` with Obsidian installer warning text prepended to the path | Older Obsidian CLI prints warnings to stdout before `vault info=path`; `scripts/lib/vault.py` should parse the last absolute-path-looking line. |
 | `fam-circles.md not found` | First verify the file actually exists. If it exists but cron/uv reports missing, suspect macOS TCC/Documents permissions for the process running `uv` (or its parent Hermes gateway/launchd service), not missing data. Grant Full Disk Access / Documents access and rerun. |
 | `FAM_CIRCLES_PATH points to unreadable fam-circles.md` | macOS TCC/iCloud access failure. Grant Full Disk Access / Documents permission to the cron/uv/Hermes gateway process, then rerun. |
