@@ -31,6 +31,8 @@ from scripts.lib import person, vault
 
 _DATE_PREFIX_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})")
 _WIKILINK_RE = re.compile(r"\[\[([^\]\n]+)\]\]")
+_FENCED_CODE_RE = re.compile(r"```.*?```", re.DOTALL)
+_INLINE_CODE_RE = re.compile(r"`[^`\n]+`")
 _LOGGED_HEADING = "## Logged contacts"
 _OTHER_HEADING = "## Other references"
 
@@ -131,6 +133,42 @@ def _wikilink_basename(link: str) -> str:
     return target
 
 
+def _strip_markdown_code(text: str) -> str:
+    """Remove markdown code spans/blocks before semantic wikilink scans.
+
+    Obsidian still renders wikilinks inside backticks as text, but the raw
+    regex scanner used for stub creation previously treated incident notes and
+    changelog examples like ``[[@Name]]`` as live people references. That made
+    the daily gardener repeatedly call Templater for placeholders/globs and
+    burn enough time to trip the cron wrapper timeout.
+    """
+    text = _FENCED_CODE_RE.sub("", text)
+    return _INLINE_CODE_RE.sub("", text)
+
+
+def _stub_scan_name(raw_link: str) -> str | None:
+    """Return an unresolved person-stub candidate from a raw wikilink.
+
+    Stub creation is intentionally narrower than backlink/index de-duping:
+    only direct links like ``[[@Alice]]`` are treated as requests to create a
+    person note. Path-prefixed links such as ``[[Z/@OpenAI]]`` may basename to
+    an ``@`` note, but they point at another namespace and should not create a
+    ``People/@OpenAI.md`` stub.
+    """
+    target = raw_link.split("|", 1)[0].split("#", 1)[0]
+    if "/" in target or "\\" in target:
+        return None
+    if target.endswith(".md"):
+        target = target[:-3]
+    if not target.startswith("@"):
+        return None
+    if any(ch in target for ch in "*?"):
+        return None
+    if target == "@Name":
+        return None
+    return target
+
+
 def _existing_link_basenames(body: str) -> set[str]:
     """Return the set of normalized wikilink basenames present anywhere in body.
 
@@ -160,12 +198,12 @@ def _scan_at_wikilinks(vault_root: Path) -> set[str]:
     found: set[str] = set()
     for md in vault.iter_files(vault_root, "*.md"):
         try:
-            text = vault.read_text(md, encoding="utf-8")
+            text = _strip_markdown_code(vault.read_text(md, encoding="utf-8"))
         except OSError:
             continue
         for raw in _WIKILINK_RE.findall(text):
-            base = _wikilink_basename(raw)
-            if base.startswith("@"):
+            base = _stub_scan_name(raw)
+            if base is not None:
                 found.add(base)
     return found
 

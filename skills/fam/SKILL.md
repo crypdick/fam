@@ -124,5 +124,6 @@ Stale or misplaced cruft (TODOs in wrong section, duplicates, drift from older r
 | `unknown circle <X>` | Wrong circle name in frontmatter |
 | `cadence_days_override must be int > 0` | Fix or remove field |
 | `OSError: [Errno 11] Resource deadlock avoided` when reading vault notes | macOS/iCloud dataless file. Repo should read through `scripts.lib.vault.read_text()`, which runs `brctl download` then retries. For one-off manual repair: `brctl download '<path>'`. |
+| `fam-tend-daily` times out with repeated `failed stub creation` warnings | Inspect unresolved `@` wikilinks with the repo scanner; common causes are incident/changelog examples in backticks, glob placeholders like `[[@*.sync-conflict-*]]`, path-prefixed non-person links like `[[Z/@OpenAI]]`, or org notes mistyped as people. Prefer fixing scanner semantics in the fam repo and correcting the bad link source over raising the global cron script timeout. Verify `unresolved_count 0`, wrapper runtime under 120s, and a manual cron run that records `wakeAgent=false`. |
 
 Surface verbatim to user.

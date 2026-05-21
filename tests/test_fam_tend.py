@@ -136,7 +136,7 @@ def test_wikilink_basename_normalization() -> None:
 
 
 def test_scan_at_wikilinks_finds_unresolved_at_links(vault_root: Path) -> None:
-    """Scanner picks up `@`-prefixed wikilinks vault-wide; ignores non-`@` links."""
+    """Scanner picks up direct `@`-prefixed wikilinks vault-wide; ignores non-`@` links."""
     note = vault_root / "Notes" / "stub_mentions.md"
     note.write_text(
         "Talked about [[@NewPerson]] and [[@Alice]] today.\n"
@@ -146,8 +146,26 @@ def test_scan_at_wikilinks_finds_unresolved_at_links(vault_root: Path) -> None:
     found = _scan_at_wikilinks(vault_root)
     assert "@NewPerson" in found
     assert "@Alice" in found
-    assert "@PathPrefixed" in found
+    assert "@PathPrefixed" not in found
     assert "some-project" not in found
+
+
+def test_scan_at_wikilinks_ignores_code_examples_and_placeholders(vault_root: Path) -> None:
+    """Incident/changelog examples should not trigger recurring Templater stub attempts."""
+    note = vault_root / "Notes" / "stub_examples.md"
+    note.write_text(
+        "Literal placeholder `[[@Name]]` and glob `[[@*.sync-conflict-*]]`.\n"
+        "```md\n[[ @Nope]]\n[[@Code Block Person]]\n```\n"
+        "Namespaced target [[Z/@OpenAI]] should stay in its namespace.\n"
+        "Real mention [[@Real Person]] still counts.\n"
+    )
+    from scripts.fam_tend import _scan_at_wikilinks
+    found = _scan_at_wikilinks(vault_root)
+    assert "@Real Person" in found
+    assert "@Name" not in found
+    assert "@*.sync-conflict-*" not in found
+    assert "@Code Block Person" not in found
+    assert "@OpenAI" not in found
 
 
 @patch("scripts.lib.vault.get_vault_root")
