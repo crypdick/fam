@@ -175,12 +175,12 @@ def test_get_vault_root_ignores_obsidian_cli_stdout_warnings(
     monkeypatch.delenv("OBSIDIAN_VAULT_ROOT", raising=False)
     mock_call.return_value = (
         "2026-05-04 20:52:39 Loading updated app package "
-        "/Users/ricardo/Library/Application Support/obsidian/obsidian-1.12.7.asar\n"
+        "/opt/obsidian/obsidian-1.12.7.asar\n"
         "Your Obsidian installer is out of date. Please download the latest installer "
         "which includes better CLI support: https://obsidian.md/download\n"
-        "/Users/ricardo/Documents/obsidian\n"
+        "/tmp/TestVault\n"
     )
-    assert vault.get_vault_root() == Path("/Users/ricardo/Documents/obsidian")
+    assert vault.get_vault_root() == Path("/tmp/TestVault")
 
 
 @patch("scripts.lib.vault.call")
