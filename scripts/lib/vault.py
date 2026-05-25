@@ -7,6 +7,7 @@ so the caller (or the user) can act on the message.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -14,6 +15,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 MACOS_OBSIDIAN_CLI = Path("/Applications/Obsidian.app/Contents/MacOS/Obsidian")
+SYNC_CONFLICT_RE = re.compile(r"\.sync-conflict-\d{8}-\d{6}-[A-Z0-9]+")
 
 
 class ObsidianCliError(RuntimeError):
@@ -93,16 +95,23 @@ def resolve_case_insensitive(target: Path, vault_root: Path) -> Path | None:
 
 
 def iter_files(vault_root: Path, pattern: str) -> Iterator[Path]:
-    """Yield files matching `pattern` under `vault_root`, skipping dotfile dirs.
+    """Yield files matching `pattern` under `vault_root`, skipping non-live files.
 
     Excludes any path containing a component starting with `.` (e.g.
     `.obsidian/`, `.trash/`, `.stversions/`, `.git/`). Syncthing's
     `.stversions/` mirror in particular will otherwise produce duplicate
     matches of every vault file and break uniqueness contracts.
+
+    Also excludes Syncthing conflict copies. fam operates on canonical live
+    notes; treating `@Alice.sync-conflict-...md` as a separate person note makes
+    routine gardening rewrite and preserve conflict artifacts instead of letting
+    sync-conflict triage delete/merge them.
     """
     for p in vault_root.rglob(pattern):
         rel = p.relative_to(vault_root)
         if any(part.startswith(".") for part in rel.parts):
+            continue
+        if any(SYNC_CONFLICT_RE.search(part) for part in rel.parts):
             continue
         yield p
 

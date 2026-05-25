@@ -292,6 +292,16 @@ def test_scan_at_wikilinks_skips_dotfile_dirs(vault_root: Path) -> None:
     assert "@Hidden Person" not in found
 
 
+def test_scan_at_wikilinks_skips_syncthing_conflict_files(vault_root: Path) -> None:
+    conflict = vault_root / "Notes" / "incident.sync-conflict-20260523-225211-I3CHISF.md"
+    conflict.write_text("Mention of [[@Conflict Only Person]] in a conflict copy.\n")
+
+    from scripts.fam_tend import _scan_at_wikilinks
+    found = _scan_at_wikilinks(vault_root)
+
+    assert "@Conflict Only Person" not in found
+
+
 @patch("scripts.lib.vault.get_vault_root")
 @patch("scripts.lib.vault.backlinks", return_value=[])
 def test_sync_appends_unlinked_persons_after_last_person_bullet(
@@ -395,6 +405,26 @@ def test_sync_dedups_against_path_prefixed_wikilinks(
     _, sync, _ = fam_tend.tend()
     assert "@Alice" not in sync.added
     assert sorted(sync.added) == ["@Bob", "@Carol", "@Dan", "@Eve"]
+
+
+@patch("scripts.lib.vault.get_vault_root")
+@patch("scripts.lib.vault.backlinks", return_value=[])
+def test_sync_ignores_syncthing_conflict_person_copies(
+    _bk, mock_root, vault_root: Path
+) -> None:
+    mock_root.return_value = vault_root
+    conflict = vault_root / "People" / "@Zed.sync-conflict-20260523-225211-I3CHISF.md"
+    conflict.write_text("---\ncircle: close\n---\n")
+    index_md = vault_root / "People" / "index.md"
+    index_md.write_text("# People\n\n- [[@Alice]] — contact\n")
+
+    from scripts import fam_tend
+    run = fam_tend.tend()
+    text = index_md.read_text()
+
+    assert "@Zed.sync-conflict" not in run.index_sync.added
+    assert "@Zed.sync-conflict" not in text
+    assert "Zed.sync-conflict" not in {r.person for r in run.results}
 
 
 @patch("scripts.lib.vault.get_vault_root")

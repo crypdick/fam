@@ -48,6 +48,19 @@ def test_iter_files_skips_nested_dotfile_dirs(tmp_path: Path) -> None:
     assert found == ["live.md"]
 
 
+def test_iter_files_skips_syncthing_conflict_copies(tmp_path: Path) -> None:
+    """Syncthing conflict artifacts are not live notes for fam operations."""
+    people = tmp_path / "wiki" / "People"
+    people.mkdir(parents=True)
+    (people / "@Alice.md").write_text("live")
+    (people / "@Alice.sync-conflict-20260523-225211-I3CHISF.md").write_text("dupe")
+    (tmp_path / "note.sync-conflict-20260523-225211-I3CHISF.md").write_text("dupe")
+
+    found = sorted(p.relative_to(tmp_path).as_posix() for p in vault.iter_files(tmp_path, "*.md"))
+
+    assert found == ["wiki/People/@Alice.md"]
+
+
 def test_resolve_case_insensitive_returns_actual_path(tmp_path: Path) -> None:
     (tmp_path / "Wiki" / "People").mkdir(parents=True)
     actual_file = tmp_path / "Wiki" / "People" / "@X.md"

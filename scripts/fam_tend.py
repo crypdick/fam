@@ -267,7 +267,11 @@ def _sync_people_index(vault_root: Path, cfg: config_mod.Config) -> IndexSyncRes
     except OSError as e:
         return IndexSyncResult(skipped_reason=f"index.md unreadable: {e}")
     existing = _existing_link_basenames(text)
-    persons = sorted(p.stem for p in folder.glob("@*.md") if p.is_file())
+    persons = sorted(
+        p.stem
+        for p in vault.iter_files(vault_root, f"{Path(cfg.people_folder).as_posix()}/@*.md")
+        if p.parent == folder and p.is_file()
+    )
     missing = [name for name in persons if name not in existing]
     if not missing:
         return IndexSyncResult()

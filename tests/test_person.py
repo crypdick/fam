@@ -22,6 +22,16 @@ def test_discover_skips_dotfile_dirs(vault_root: Path) -> None:
     assert discovered.count("@Alice.md") == 1
 
 
+def test_discover_skips_syncthing_conflict_person_notes(vault_root: Path) -> None:
+    conflict = vault_root / "People" / "@Alice.sync-conflict-20260523-225211-I3CHISF.md"
+    conflict.write_text((vault_root / "People" / "@Alice.md").read_text())
+
+    discovered = [p.name for p in person.discover(vault_root)]
+
+    assert "@Alice.sync-conflict-20260523-225211-I3CHISF.md" not in discovered
+    assert discovered.count("@Alice.md") == 1
+
+
 def test_load_alice(vault_root: Path) -> None:
     p = person.load(vault_root / "People" / "@Alice.md")
     assert p.name == "Alice"
