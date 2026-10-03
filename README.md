@@ -18,8 +18,6 @@ In Claude Code:
 - (Optional) Templater plugin if you want to use `examples/person_template.md`
 - Python 3.13+ with `uv` (the plugin's scripts run via `uv run`)
 
-For multi-vault setups, set `FAM_VAULT_NAME=<name>` in your environment so `obsidian` CLI calls target the right vault.
-
 ## Usage
 
 Tell your agent to set things up :)
