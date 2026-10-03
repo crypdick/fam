@@ -1,8 +1,8 @@
 # Design and reference
 
 fam stores person notes in an Obsidian vault. Scripts calculate the contact
-queue and collect backlinks. The agent edits individual notes to log contacts,
-change circles, or set reminders.
+queue and create person notes through Templater. The agent edits individual
+notes to log contacts, change circles, or set reminders.
 
 ## Configuration
 
@@ -108,9 +108,12 @@ Log contacts under the exact `## Logged contacts` heading:
 it in frontmatter. Other sections, backlinks, and frontmatter dates don't feed
 the calculation directly. Malformed contact bullets fail validation.
 
-`## Other references` holds mentions that don't count as contacts. The agent
-fills gardener placeholders by reading the linked note and summarizing why
-the person appears.
+Log a contact only when the user reports it or the agent has evidence of an
+actual interaction. A dated note or backlink mentioning someone is not contact
+evidence. Scripts never infer contacts from filenames or mentions.
+
+`## Other references` holds context the agent judges useful for the relationship.
+There is no automatic copying or summarizing of backlinks.
 
 Keep overdue `next_action_at` dates until you complete or cancel the action.
 After logging the intended contact, clear that action date. You can remove
@@ -150,33 +153,27 @@ Use these options to change the output:
 - `--limit N` returns at most N rows.
 - `--json` returns structured rows. Infinite scores use the string `"inf"`.
 
-## Vault tending
+## Person creation
 
-`fam-tend` scans unresolved `[[@Name]]` links and creates stubs through
-Templater when you configure a destination and template. It also adds
-missing person links to an existing `index.md` in `people_folder`, using
-full vault-relative targets.
+`fam-tend` creates missing person notes through the configured Templater
+template. With no filter, it scans unresolved `[[@Name]]` links. It skips
+literal code examples, path-prefixed links, hidden directories, and Syncthing
+conflict copies.
 
-For each person, the script reads Obsidian backlinks. A source filename
-starting with a valid `YYYY-MM-DD` date produces a contact bullet. Other
-sources produce reference placeholders:
+Use `fam-tend --person "Jane Doe"` to ensure one named person note exists
+without scanning vault mentions. Names may include the leading `@`; paths and
+wikilink syntax are rejected. An existing note anywhere in the vault is left
+unchanged. New notes use the configured `people_folder` and `person_template`.
+The tool handles creation retries and checks that Templater persisted the file.
 
-```markdown
-## Logged contacts
-- 2026-05-01 — meeting: [[Meetings/2026-05-01 Lunch]]
+`--dry-run` previews missing notes without invoking Templater or writing files.
+Repeated runs skip existing notes. Tending never rewrites contact history,
+reference sections, or indexes. The agent edits relationship state directly
+when useful; it does not need to finish housekeeping after a run.
 
-## Other references
-- [[Projects/Climbing trip]] — TODO: summarize
-```
-
-Classification uses only the filename, so review dated backlinks that mention
-a person without recording contact. New links retain vault-relative paths.
-Repeated tending skips existing links with the same full target.
-
-`--person NAME` updates one person's backlinks and skips stub creation and
-index updates. `--dry-run` previews stub creation, index updates, and bullets
-without creating or editing files. It still reads the vault and requests
-backlinks from Obsidian.
+Existing generated contact bullets and reference placeholders remain in place.
+Removing them automatically could discard real interactions or user edits.
+Review questionable history against the source before correcting it.
 
 ## Validation and failures
 
@@ -186,8 +183,8 @@ contact bullets. It returns a nonzero exit status for errors.
 Mutating scripts use `scripts/lib/validate.py` to validate the whole vault
 before and after writes. `fam-today` permits only its missing-circle repair
 during preflight. Other invalid notes stop writes. Validation failures name
-the affected note or configuration field. Failed stub creation or an unreadable
-people index also produces a nonzero exit status.
+the affected note or configuration field. Failed template creation also
+produces a nonzero exit status.
 
 The Obsidian wrapper in `scripts/lib/vault.py` reports command failures.
 It doesn't preflight-check whether the app or command-line tool is available.

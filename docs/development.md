@@ -34,9 +34,9 @@ working directory or `PATH`. If the parent process sets `VIRTUAL_ENV` for
 another environment, unset it before invoking `uv`.
 
 `OBSIDIAN_VAULT_PATH` and `FAM_CIRCLES_PATH` avoid asking Obsidian for the
-vault root or scanning for configuration. Commands that request backlinks
-or create notes through Templater still need Obsidian running. Keep
-deployment-specific paths in the scheduler environment or local wrapper.
+vault root or scanning for configuration. Creating notes through Templater
+still needs Obsidian running. Keep deployment-specific paths in the scheduler
+environment or local wrapper.
 
 If a command can't read configuration, verify the selected path and the
 scheduled process's file permissions. On macOS, that process might need Documents

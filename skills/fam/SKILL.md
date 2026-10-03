@@ -63,7 +63,7 @@ Queue exclusion follows configured `cadence_days: null`. An explicit `next_actio
 | Command | Use |
 |---------|-----|
 | `/fam-today` | Show ranked queue. Default includes scores at or above each circle's threshold. `--all` includes below-threshold rows, including people not yet due; exclusions still apply. `--circle X` filters, `--limit N` caps rows, `--json` returns structured output. `--include-snoozed` includes snoozed rows. Missing `circle` is persisted as `reference` under validation. |
-| `/fam-tend` | Create stubs for unresolved `[[@Name]]` links using the configured template; sync the configured people index; add dated backlink bullets to `## Logged contacts` and summary placeholders to `## Other references`. `--person <name>` limits people tended. `--dry-run` previews without writing. Repeated runs do not duplicate generated entries. |
+| `/fam-tend` | Create missing person notes through Templater. Default scans unresolved `[[@Name]]` links; `--person <name>` ensures only that named note exists. Existing notes are untouched. `--dry-run` previews creation without writing. |
 | `/fam-validate` | Check config and person notes. |
 
 From the repo, use `uv run fam-tend`, `uv run fam-today`, and `uv run fam-validate`. From another directory, use `uv --project "<plugin-root>" run <command>`.
@@ -71,6 +71,10 @@ From the repo, use `uv run fam-tend`, `uv run fam-today`, and `uv run fam-valida
 Mutating scripts validate the vault before and after work. Invalid config or person notes abort tending. Surface failed stub creation and validation errors before further edits.
 
 ## Log a contact
+
+Log only user-reported interactions or contacts established by evidence in the
+source. A backlink or dated filename alone does not establish contact. Scripts
+never infer contact history.
 
 For "log a coffee with Christina yesterday, talked about her dog":
 
@@ -89,18 +93,21 @@ Keep `next_action_at` until its associated action is completed or the user dismi
 For "start tracking @Jane Doe, met her at climbing gym, close circle":
 
 1. Check for an existing person note before creating one. Use the configured people folder or the user's existing layout.
-2. Create `@Jane Doe.md` with `circle: close` and the two body sections: `## Logged contacts` and `## Other references`.
-3. Log the meeting with the date supplied by the user. Ask for the date if needed; do not assume the meeting happened today.
+2. When a template is configured, run `fam-tend --person "Jane Doe"`; the tool handles Templater creation and retries. Otherwise create the note directly using the example template.
+3. Set `circle: close` on the resolved note, preserving template fields.
+4. Log the meeting with the date supplied by the user. Ask for the date if needed; do not assume the meeting happened today.
 
 See [example person](../../examples/@Jane%20Doe.md) and [person template](../../examples/person_template.md).
 
-## After tending
+## Relationship context
 
-After a successful mutating run, read linked notes and replace generated `TODO: summarize` placeholders in person notes touched by that run with one-sentence reasons the person appears. Keep each link's full vault-relative target.
+Read relevant source notes when preparing outreach or updating relationship
+state. Add context under `## Other references` only when useful for that
+relationship. Do not copy every backlink, create summary placeholders, or
+maintain person indexes as part of tending.
 
-Cleanup is limited to generated placeholders and exact duplicate generated bullets in those touched notes. Preserve user-written content. If ownership is unclear, leave the content and report it.
-
-For `--dry-run`, present the preview without editing notes, frontmatter, summaries, or indexes.
+`fam-tend` requires no follow-up housekeeping. Existing notes and indexes are
+left unchanged. For `--dry-run`, present the preview without making edits.
 
 ## Errors
 

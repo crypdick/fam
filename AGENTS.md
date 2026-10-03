@@ -17,7 +17,8 @@ Claude Code plugin. Personal CRM. Agent-driven, on top of plain-markdown person 
 
 ## Architecture rules
 
-- Scripts encode cross-vault aggregation only. Per-person CRUD = direct file edits.
+- Scripts aggregate the queue and wrap Templater person creation. Other per-person CRUD = direct file edits.
+- Scripts never infer contact history from mentions or dated filenames. Agents log contacts from user reports or evidence of an actual interaction.
 - Every mutating script wraps work in `lib/validate.guard()` (preflight + postflight).
 - `last_contacted` pure-derived from `## Logged contacts`. Never store in frontmatter.
 - Plugin owns `fam`-namespace fields only. User-namespace frontmatter passes through.
