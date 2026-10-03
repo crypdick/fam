@@ -6,6 +6,8 @@ Personal CRM stored as plain markdown inside an Obsidian vault. Enables agents t
 
 Tell your agent to set things up :)
 
+Remote agents can use the [MCP server](docs/MCP.md).
+
 ## Prerequisites
 
 - Obsidian app installed and running

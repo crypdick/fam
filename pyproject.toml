@@ -13,6 +13,10 @@ dev = [
   "pytest>=8",
   "ruff>=0.5",
   "pyright>=1.1",
+  "fastmcp==4.0.10",
+]
+mcp = [
+  "fastmcp==4.0.10",
 ]
 
 [tool.pytest.ini_options]
@@ -39,6 +43,7 @@ typeCheckingMode = "standard"
 fam-tend = "scripts.fam_tend:main"
 fam-today = "scripts.fam_today:main"
 fam-validate = "scripts.fam_validate:main"
+fam-mcp = "scripts.fam_mcp:main"
 
 [build-system]
 requires = ["setuptools>=69"]

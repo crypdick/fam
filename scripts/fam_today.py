@@ -8,6 +8,7 @@ import sys
 from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 from scripts.lib import config as config_mod
 from scripts.lib import interactions, person, score, validate, vault
@@ -90,24 +91,25 @@ def _format_table(rows: list[Row]) -> str:
     return "\n".join(out)
 
 
+def rows_as_dicts(rows: list[Row]) -> list[dict[str, Any]]:
+    """Serialize queue rows for CLI and MCP, using valid JSON for infinite scores."""
+    return [
+        {
+            "name": r.name,
+            "circle": r.circle,
+            "last_contacted": r.last_contacted.isoformat() if r.last_contacted else None,
+            "days": r.days,
+            "days_overdue": r.days_overdue,
+            "score": ("inf" if r.score == float("inf") else r.score),
+            "path": str(r.path),
+            "snoozed": r.snoozed,
+        }
+        for r in rows
+    ]
+
+
 def _format_json(rows: list[Row]) -> str:
-    return _json.dumps(
-        [
-            {
-                "name": r.name,
-                "circle": r.circle,
-                "last_contacted": r.last_contacted.isoformat() if r.last_contacted else None,
-                "days": r.days,
-                "days_overdue": r.days_overdue,
-                "score": ("inf" if r.score == float("inf") else r.score),
-                "path": str(r.path),
-                "snoozed": r.snoozed,
-            }
-            for r in rows
-        ],
-        indent=2,
-        allow_nan=False,
-    )
+    return _json.dumps(rows_as_dicts(rows), indent=2, allow_nan=False)
 
 
 def run(

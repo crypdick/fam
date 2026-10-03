@@ -102,16 +102,20 @@ def iter_files(vault_root: Path, pattern: str) -> Iterator[Path]:
     `.stversions/` mirror in particular will otherwise produce duplicate
     matches of every vault file and break uniqueness contracts.
 
-    Also excludes Syncthing conflict copies. fam operates on canonical live
+    Also excludes symlinks resolving outside the vault and Syncthing conflict copies.
+    fam operates on canonical live
     notes; treating `@Alice.sync-conflict-...md` as a separate person note makes
     routine gardening rewrite and preserve conflict artifacts instead of letting
     sync-conflict triage delete/merge them.
     """
+    resolved_root = vault_root.resolve()
     for p in vault_root.rglob(pattern):
         rel = p.relative_to(vault_root)
         if any(part.startswith(".") for part in rel.parts):
             continue
         if any(SYNC_CONFLICT_RE.search(part) for part in rel.parts):
+            continue
+        if not p.resolve().is_relative_to(resolved_root):
             continue
         yield p
 
