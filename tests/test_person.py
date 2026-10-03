@@ -116,3 +116,25 @@ def test_write_persists_periodic_contact_reminders_false(tmp_path: Path) -> None
     p = person.load(src)
     person.write(p)
     assert "periodic_contact_reminders: false" in src.read_text()
+
+
+def test_quoted_iso_date_is_supported(tmp_path: Path):
+    path = tmp_path / "@Contact.md"
+    path.write_text('---\ncircle: close\nnext_action_at: "2026-10-03"\n---\n')
+    assert person.load(path).next_action_at == date(2026, 10, 3)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("cadence_days_override", "true"),
+        ("contact_channels_ordered_preference", "false"),
+        ("contact_channels_ordered_preference", '""'),
+        ("next_action_at", "2026-10-03T12:00:00"),
+    ],
+)
+def test_invalid_field_types_are_rejected(tmp_path: Path, field, value):
+    path = tmp_path / "@Contact.md"
+    path.write_text(f"---\ncircle: close\n{field}: {value}\n---\n")
+    with pytest.raises(person.PersonSchemaError, match=field):
+        person.load(path)

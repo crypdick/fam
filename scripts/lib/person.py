@@ -4,6 +4,7 @@ A "person" is any markdown file whose basename starts with `@` anywhere
 in the vault. Frontmatter has a `fam`-namespace plus arbitrary user
 fields, which pass through untouched.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -12,18 +13,11 @@ from pathlib import Path
 from typing import Any
 
 import frontmatter
+import yaml
 
 from . import vault as vault_mod
 
 CIRCLES = ("reference", "passive", "inner", "close", "orbit", "distant")
-FAM_FIELDS = (
-    "circle",
-    "cadence_days_override",
-    "snooze_until",
-    "next_action_at",
-    "contact_channels_ordered_preference",
-    "periodic_contact_reminders",
-)
 
 
 class PersonSchemaError(RuntimeError):
@@ -52,23 +46,42 @@ def discover(vault_root: Path) -> list[Path]:
 def _coerce_date(value: Any, file: Path, field_name: str) -> date | None:
     if value is None:
         return None
-    if isinstance(value, date):
+    if type(value) is date:
         return value
+    if isinstance(value, str):
+        try:
+            parsed = date.fromisoformat(value)
+            if parsed.isoformat() == value:
+                return parsed
+        except ValueError:
+            pass
     raise PersonSchemaError(f"{file}: `{field_name}` must be ISO date, got {value!r}")
 
 
-def load(path: Path) -> Person:
-    post = frontmatter.loads(vault_mod.read_text(path, encoding="utf-8"))
+def _read_post(path: Path) -> frontmatter.Post:
+    try:
+        return frontmatter.loads(vault_mod.read_text(path, encoding="utf-8"))
+    except yaml.YAMLError as e:
+        raise PersonSchemaError(f"{path}: malformed YAML frontmatter: {e}") from e
+
+
+def load(path: Path, *, default_missing_circle: bool = False) -> Person:
+    post = _read_post(path)
+    if default_missing_circle and "circle" not in post.metadata:
+        post.metadata["circle"] = "reference"
     return _load_post(path, post)
 
 
 def load_or_set_reference_circle(path: Path) -> Person:
     """Load a person, defaulting missing `circle` frontmatter to `reference`."""
-    post = frontmatter.loads(vault_mod.read_text(path, encoding="utf-8"))
-    if "circle" not in post.metadata:
+    post = _read_post(path)
+    missing_circle = "circle" not in post.metadata
+    if missing_circle:
         post.metadata = {"circle": "reference", **post.metadata}
+    loaded = _load_post(path, post)
+    if missing_circle:
         path.write_text(frontmatter.dumps(post), encoding="utf-8")
-    return _load_post(path, post)
+    return loaded
 
 
 def _load_post(path: Path, post: frontmatter.Post) -> Person:
@@ -78,16 +91,14 @@ def _load_post(path: Path, post: frontmatter.Post) -> Person:
     if circle is None:
         raise PersonSchemaError(f"{path}: missing required field `circle`")
     if circle not in CIRCLES:
-        raise PersonSchemaError(
-            f"{path}: unknown circle {circle!r}; valid: {', '.join(CIRCLES)}"
-        )
+        raise PersonSchemaError(f"{path}: unknown circle {circle!r}; valid: {', '.join(CIRCLES)}")
     cadence_override = fm.pop("cadence_days_override", None)
     if cadence_override is not None:
-        if not isinstance(cadence_override, int) or cadence_override <= 0:
+        if type(cadence_override) is not int or cadence_override <= 0:
             raise PersonSchemaError(f"{path}: `cadence_days_override` must be int > 0")
     snooze = _coerce_date(fm.pop("snooze_until", None), path, "snooze_until")
     next_action = _coerce_date(fm.pop("next_action_at", None), path, "next_action_at")
-    channels = fm.pop("contact_channels_ordered_preference", None) or []
+    channels = fm.pop("contact_channels_ordered_preference", [])
     if not isinstance(channels, list) or not all(isinstance(c, str) for c in channels):
         raise PersonSchemaError(
             f"{path}: `contact_channels_ordered_preference` must be a list of strings"
@@ -100,6 +111,8 @@ def _load_post(path: Path, post: frontmatter.Post) -> Person:
     # Reject fam-namespace typos: anything starting with `fam_` or matching a
     # known prefix the user might have miswritten.
     for k in fm:
+        if not isinstance(k, str):
+            raise PersonSchemaError(f"{path}: frontmatter field names must be strings")
         if k.startswith("fam_") or k in {"cadence_days", "snooze", "next_action"}:
             raise PersonSchemaError(f"{path}: unknown fam-namespace field `{k}`")
     return Person(

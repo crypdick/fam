@@ -1,8 +1,9 @@
 """Score formula + queue filter. Pure functions; no I/O."""
+
 from __future__ import annotations
 
 import math
-from datetime import date
+from datetime import date, timedelta
 
 from scripts.lib.config import Config
 from scripts.lib.person import Person
@@ -26,7 +27,7 @@ def score(person: Person, last: date | None, today: date, config: Config) -> flo
     if person.next_action_at is not None:
         anchor = person.next_action_at
     elif last is not None:
-        anchor = last + _days(cadence)
+        anchor = last + timedelta(days=cadence)
     else:
         return float("inf")
     days = (today - anchor).days
@@ -46,7 +47,7 @@ def days_overdue(person: Person, last: date | None, today: date, config: Config)
         cadence = _cadence(person, config)
         if cadence is None or cadence <= 0:
             return None
-        anchor = last + _days(cadence)
+        anchor = last + timedelta(days=cadence)
     else:
         return None
     return (today - anchor).days
@@ -61,8 +62,3 @@ def in_queue(person: Person, score: float, config: Config) -> bool:
     if threshold is None:
         return False
     return score >= threshold
-
-
-def _days(n: int):
-    from datetime import timedelta
-    return timedelta(days=n)

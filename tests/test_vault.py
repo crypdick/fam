@@ -166,14 +166,18 @@ def test_call_uses_macos_obsidian_app_binary_when_obsidian_not_on_path(
 
 
 @patch("scripts.lib.vault.call")
-def test_get_vault_root_prefers_env_path(mock_call: MagicMock, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_vault_root_prefers_env_path(
+    mock_call: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setenv("OBSIDIAN_VAULT_PATH", "/tmp/MyVault")
     assert vault.get_vault_root() == Path("/tmp/MyVault")
     mock_call.assert_not_called()
 
 
 @patch("scripts.lib.vault.call")
-def test_get_vault_root_strips_whitespace(mock_call: MagicMock, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_vault_root_strips_whitespace(
+    mock_call: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.delenv("OBSIDIAN_VAULT_PATH", raising=False)
     monkeypatch.delenv("OBSIDIAN_VAULT_ROOT", raising=False)
     mock_call.return_value = "/home/user/Documents/MyVault\n"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import re
 from pathlib import Path
 
 import pytest
@@ -39,7 +40,9 @@ def test_load_ignores_dotfile_dir_duplicates(vault_root: Path) -> None:
     assert cfg.path == vault_root / "fam-circles.md"
 
 
-def test_load_respects_explicit_circles_path(vault_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_respects_explicit_circles_path(
+    vault_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     nested = vault_root / "wiki" / "People" / "fam-circles.md"
     nested.parent.mkdir(parents=True)
     nested.write_text((vault_root / "fam-circles.md").read_text())
@@ -64,7 +67,11 @@ def test_load_reports_unreadable_explicit_circles_path(
     vault_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("FAM_CIRCLES_PATH", "fam-circles.md")
-    monkeypatch.setattr(Path, "stat", lambda _self: (_ for _ in ()).throw(PermissionError("denied")))
+
+    def deny_stat(_self):
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(Path, "stat", deny_stat)
 
     with pytest.raises(config.ConfigError, match="Full Disk Access|Documents permission"):
         config.load(vault_root)
@@ -99,6 +106,7 @@ def test_load_parses_optional_stub_fields(vault_root: Path) -> None:
 def test_load_omits_stub_fields_when_absent(vault_root: Path) -> None:
     (vault_root / "fam-circles.md").write_text(
         "# fam — circles\n\n```yaml\ncircles:\n"
+        "  reference: {cadence_days: null, alert_threshold: null}\n"
         "  passive: {cadence_days: null, alert_threshold: null}\n```\n"
     )
     cfg = config.load(vault_root)
@@ -107,8 +115,89 @@ def test_load_omits_stub_fields_when_absent(vault_root: Path) -> None:
 
 
 def test_load_rejects_non_string_stub_fields(vault_root: Path) -> None:
-    (vault_root / "fam-circles.md").write_text(
-        "# fam — circles\n\n```yaml\ncircles: {}\npeople_folder: 42\n```\n"
-    )
+    path = vault_root / "fam-circles.md"
+    path.write_text(path.read_text().replace("people_folder: People", "people_folder: 42"))
     with pytest.raises(config.ConfigError, match="people_folder"):
         config.load(vault_root)
+
+
+@pytest.mark.parametrize(
+    "yaml_text",
+    [
+        "{}",
+        "- nope",
+        "circles: {}",
+        "circles: []",
+        "circles: {close: null}",
+        "circles: {close: {cadence_days: weekly, alert_threshold: 0}}",
+        "circles: {close: {cadence_days: true, alert_threshold: 0}}",
+        "circles: {close: {cadence_days: 0, alert_threshold: 0}}",
+        "circles: {close: {cadence_days: 30, alert_threshold: tomorrow}}",
+        "circles: {close: {cadence_days: 30, alert_threshold: .nan}}",
+        "circles: {close: {cadence_days: 30, alert_threshold: .inf}}",
+        "circles: {close: {cadence_days: 30}}",
+    ],
+)
+def test_invalid_circle_config_is_reported(vault_root: Path, yaml_text: str):
+    (vault_root / "fam-circles.md").write_text(f"```yaml\n{yaml_text}\n```\n")
+    with pytest.raises(config.ConfigError):
+        config.load(vault_root)
+
+
+def test_reference_and_passive_must_have_no_cadence(vault_root: Path):
+    path = vault_root / "fam-circles.md"
+    path.write_text(
+        path.read_text().replace(
+            "reference: {cadence_days: null, alert_threshold: null}",
+            "reference: {cadence_days: 7, alert_threshold: 0}",
+        )
+    )
+    with pytest.raises(config.ConfigError, match="reference"):
+        config.load(vault_root)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("people_folder", "/tmp/people"),
+        ("people_folder", "../people"),
+        ("person_template", "/tmp/template.md"),
+        ("person_template", "../template.md"),
+    ],
+)
+def test_stub_paths_must_be_vault_relative(vault_root: Path, field, value):
+    path = vault_root / "fam-circles.md"
+    text = path.read_text()
+    text = re.sub(rf"{field}: .*", f"{field}: {value}", text)
+    path.write_text(text)
+    with pytest.raises(config.ConfigError, match=field):
+        config.load(vault_root)
+
+
+@pytest.mark.parametrize(
+    "replacement,field",
+    [
+        ("{cadence_days: true, alert_threshold: 0}", "cadence_days"),
+        ("{cadence_days: 0, alert_threshold: 0}", "cadence_days"),
+        ("{cadence_days: weekly, alert_threshold: 0}", "cadence_days"),
+        ("{cadence_days: 30, alert_threshold: true}", "alert_threshold"),
+        ("{cadence_days: 30, alert_threshold: tomorrow}", "alert_threshold"),
+        ("{cadence_days: 30, alert_threshold: .nan}", "alert_threshold"),
+        ("{cadence_days: 30, alert_threshold: .inf}", "alert_threshold"),
+        ("{cadence_days: 30}", "alert_threshold"),
+        ("{cadence_days: 30, alert_threshold: null}", "alert_threshold"),
+    ],
+)
+def test_config_rejects_bad_values_with_complete_circle_set(vault_root: Path, replacement, field):
+    path = vault_root / "fam-circles.md"
+    path.write_text(re.sub(r"close:.*", f"close: {replacement}", path.read_text()))
+    with pytest.raises(config.ConfigError, match=field):
+        config.load(vault_root)
+
+
+def test_active_circle_can_disable_cadence(vault_root: Path):
+    path = vault_root / "fam-circles.md"
+    path.write_text(
+        re.sub(r"close:.*", "close: {cadence_days: null, alert_threshold: null}", path.read_text())
+    )
+    assert config.load(vault_root).circles["close"].cadence_days is None
