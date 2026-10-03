@@ -12,7 +12,8 @@ uv run pyright scripts tests
 Tests use synthetic notes in `tests/fixtures/vault/`. Mutating tests copy
 the fixture through `vault_root`. They must not edit the source fixture or
 your personal vault. Tests mock Obsidian responses; they don't verify the
-running app or Templater.
+running app or Templater. MCP tests exercise tool calls and an authenticated
+local HTTP server against fixture notes.
 
 The supported repository commands are console scripts:
 
