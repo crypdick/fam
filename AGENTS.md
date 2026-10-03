@@ -28,6 +28,6 @@ Channel send/read, channel-derived `last_contacted`, Nextcloud watcher, Bases ge
 
 ## Tests
 
-- `uv run pytest` runs all unit + light integration tests.
+- `uv run pytest` runs unit and fixture-vault tests; Obsidian responses are mocked.
 - Tests use `tests/fixtures/vault/` (synthetic, no real names). Mutating tests copy via `vault_root` conftest fixture.
 - One integration marker (`@pytest.mark.integration`) for tests hitting real `obsidian` CLI.

@@ -3,11 +3,19 @@ description: Run the fam vault gardener (scan backlinks, update sections)
 ---
 
 ```bash
-PYTHONPATH=${CLAUDE_PLUGIN_ROOT} uv --project ${CLAUDE_PLUGIN_ROOT} run python ${CLAUDE_PLUGIN_ROOT}/scripts/fam_tend.py $ARGUMENTS
+uv --project "${CLAUDE_PLUGIN_ROOT}" run fam-tend $ARGUMENTS
 ```
 
-After tending, fill every `TODO: summarize` line: read linked note,
-write one-sentence reason under `## Other references`.
+For `--dry-run`, present the preview without editing notes, frontmatter,
+summaries, or indexes.
 
-Stale cruft (TODOs in wrong section, duplicates, leftovers from older
-runs)? Fix it. Vault reflects current state. Don't ask.
+After a successful mutating run, fill generated `TODO: summarize`
+placeholders in person notes touched by that run. Read the linked note
+and write a one-sentence reason under `## Other references`, preserving
+the full vault-relative link target.
+
+Cleanup is limited to generated placeholders and exact duplicate
+generated bullets in those touched notes. Preserve user-written content.
+If ownership is unclear, leave the content and report it.
+
+Surface validation and stub-creation failures before further edits.

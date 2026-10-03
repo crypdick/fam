@@ -57,3 +57,16 @@ def test_em_or_en_dash_either_accepted() -> None:
     body = "## Logged contacts\n- 2026-04-01 - text\n- 2026-04-02 — text\n- 2026-04-03 – text\n"
     bullets = interactions.parse_logged_contacts(body)
     assert [b.date for b in bullets] == [date(2026, 4, 1), date(2026, 4, 2), date(2026, 4, 3)]
+
+
+def test_headings_and_contacts_in_fenced_examples_are_ignored():
+    body = (
+        "```md\n## Logged contacts\n- 2030-01-01 — example\n```\n"
+        "## Logged contacts\n- 2026-05-01 — real contact\n"
+        "~~~md\n- 2030-02-01 — another example\n~~~\n"
+        "# Another topic\n- 2030-03-01 — outside contact history\n"
+    )
+    assert interactions.parse_logged_contacts(body) == [
+        interactions.LoggedContact(date=date(2026, 5, 1), text="real contact")
+    ]
+    assert interactions.logged_contact_errors(body) == []
