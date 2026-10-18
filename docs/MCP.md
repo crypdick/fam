@@ -2,7 +2,7 @@
 
 Install the optional MCP dependencies and start a local stdio server:
 
-```sh
+```shell
 uv sync --locked --extra mcp
 uv run fam-mcp
 ```
@@ -14,8 +14,9 @@ Set the same vault environment variables used by the CLI. See
 
 For a private HTTP server, put a bearer token in a restricted file:
 
-```sh
-uv run --extra mcp fam-mcp --transport http --host 0.0.0.0 --token-file /run/secrets/fam-token
+```shell
+uv run --extra mcp fam-mcp --transport http --host 0.0.0.0 \
+    --token-file /run/secrets/fam-token
 ```
 
 HTTP requires `--token-file` or `FAM_MCP_TOKEN_FILE`; an absent or empty token
@@ -39,13 +40,7 @@ prevents startup. Clients send `Authorization: Bearer <token>` to `/mcp`.
   `path` returned by the queue or list. Rejects non-person notes and paths outside
   the vault. Discovery excludes hidden files, conflict copies, and symlink escapes.
 
-Tools reuse the CLI's scoring, validation, and Templater creation. Tending needs
-Obsidian and Templater running; queue and reads need only a configured filesystem
-root. Other person edits use existing Obsidian file tools. Contact history is
-never inferred from mentions or dated filenames.
-
-MCP does not add transactions or concurrent-edit protection. Existing preflight
-and postflight validation applies to mutations. See [failure behavior](DESIGN.md#validation-and-failures).
+Tools reuse CLI behavior. Tending needs Obsidian and Templater running; queue and reads need only a configured filesystem root. Use existing Obsidian file tools for other person edits. See [validation and failures](DESIGN.md#validation-and-failures) for write behavior.
 
 The dcloud deployment lives in
 [dcloud-stacks/fam-mcp](https://github.com/crypdick/dcloud-stacks/tree/main/fam-mcp).

@@ -8,4 +8,4 @@ Run `fam-today` and present the ranked queue. Pass user flags through as `$ARGUM
 uv --project "${CLAUDE_PLUGIN_ROOT}" run fam-today $ARGUMENTS
 ```
 
-Surface failures verbatim. For a disabled Obsidian CLI, point to **Settings → General → Command line interface**. Other failures need their own diagnosis.
+Report failures verbatim. If the Obsidian CLI is disabled, point to **Settings > General > Command line interface**.
