@@ -1,157 +1,65 @@
 ---
 name: fam
-description: Read and update FAM person notes, log reported contacts, manage cadence and snoozes, and show the contact queue in an Obsidian vault. Shared note and command contract for FAM review and gardening workflows.
+description: Manage FAM person notes, contact logs, cadence, snoozes, and the contact queue in an Obsidian vault.
 ---
 
-# fam — Personal CRM
+# FAM personal CRM
 
-For an interactive relationship review, use [fam-review](../fam-review/SKILL.md).
-For unattended intake and review preparation, use [fam-garden](../fam-garden/SKILL.md).
-Direct requests such as logging a contact or snoozing someone use this skill alone.
-
-## Relationship decisions
-
-Read applicable vault instructions before writes. Use current notes and explicit
-user answers as relationship state. Preserve existing content, person-specific
-cadence, snoozes, muted reminders, and no-contact boundaries. A circle change does
-not implicitly cancel a cadence override. Confirm identity before merging name
-variants; matching names alone may refer to different people.
-
-Person notes own their contact history. If a separate tracker is configured, link
-to the person note rather than keeping a second contact log. Keep tentative
-prospects and hypotheses distinguishable from confirmed relationships and facts.
-An unanswered question does not establish disinterest or permission to change
-relationship state.
-
-## Resolve context
-
-For shorthand such as "mark the first one done" or "snooze number 2", read the relevant queue or reminder output before acting. If the context does not identify one person and action, ask the user.
-
-## Prerequisites
-
-- Obsidian app installed and running
-- `obsidian` CLI enabled: Settings → General → Command line interface
-- Templater plugin when `/fam-tend` creates stubs from `person_template`
-
-Use the repo's CLI commands or the available FAM MCP tools described in
-[MCP tools](../../docs/MCP.md#tools). Remote tools may have a `fam_` prefix.
-MCP provides queue, discovery, reads, validation, and tending; other person edits
-use the available Obsidian file tools. Surface failures verbatim; do not assume
-every CLI error means the CLI is disabled.
+Use this skill for direct note operations. Use [fam-review](../fam-review/SKILL.md) for interactive relationship reviews and [fam-garden](../fam-garden/SKILL.md) for unattended preparation.
 
 ## Vault contract
 
-- People = `@<Name>.md` anywhere in the vault
-- Config = `fam-circles.md` anywhere in the vault, with a unique filename
-- Contact dates = bullets under `## Logged contacts` in a person note
-- Bullet format = `- YYYY-MM-DD — <freetext>`
-- Non-contact mentions = bullets under `## Other references`
+Read applicable vault instructions and resolve the selected vault before editing. Person notes are `@Name.md` anywhere in the vault. The unique `fam-circles.md` file contains configuration. `FAM_VAULT_NAME` selects a registered vault; see [vault selection](../../docs/DESIGN.md#vault-selection) for path overrides.
 
-Resolve the active Obsidian vault before locating config or people. `fam-circles.md` lives in the vault, not the repo. `FAM_VAULT_NAME` selects a registered vault. See [development guidance](../../docs/development.md) for automation path overrides.
+Preserve unrelated frontmatter and note content, reminder preferences, and no-contact boundaries. Circle changes do not clear person-specific cadence overrides. Confirm identity before merging name variants. Resolve shorthand such as "snooze number 2" from the relevant queue or reminder before acting; ask if ambiguous.
 
-## Config
+Person notes are the source of truth for contact history. Link to them from any separate tracker. Keep hypotheses separate from confirmed facts. Imports and mentions do not establish friendship interest, and unanswered questions remain unresolved.
 
-`fam-circles.md` holds a fenced `yaml` block with a required `circles` mapping. Both fields below are required when `/fam-tend` finds unresolved `[[@Name]]` links:
+## Tools and commands
 
-- `people_folder: <vault-relative path>` — destination for stubs
-- `person_template: <vault-relative path>` — Templater template
+Use the CLI or available [FAM MCP tools](../../docs/MCP.md#tools). MCP tools may have a `fam_` prefix; other person edits use available Obsidian file tools.
 
-See [configuration](../../docs/DESIGN.md#configuration) for circle definitions and required entries.
+- `/fam-today` shows the ranked due queue. Use `--all` for scores below the threshold, `--include-snoozed` for snoozed people, `--circle NAME` to filter, `--limit N` to cap rows, or `--json` for structured output. Missing circles are repaired to `reference`.
+- `/fam-tend` creates notes from unresolved `[[@Name]]` links through Templater. `--person "Jane Doe"` ensures one named note exists. Existing notes stay unchanged. `--dry-run` previews without edits. No summaries or index maintenance follow tending.
+- `/fam-validate` checks configuration and person notes.
 
-Use static YAML frontmatter in the template. Do not use `processFrontMatter` or move the file inside the template; the caller sets the destination.
+From the repository, use `uv run fam-today`, `uv run fam-tend`, or `uv run fam-validate`. Elsewhere, use `uv --project "PLUGIN_ROOT" run COMMAND`, replacing `PLUGIN_ROOT` with the repository path and `COMMAND` with a command name.
 
-## Schema
+CLI vault discovery needs Obsidian running with **Settings > General > Command line interface** enabled. Tending also needs Templater and the configured `people_folder` and `person_template`. Use static YAML frontmatter in templates; the caller sets the destination. See [configuration](../../docs/DESIGN.md#configuration) for setup.
 
-Required:
+Mutating scripts validate before and after writes. Report errors verbatim and resolve validation or creation failures before further edits. Check the selected vault, paths, and permissions before treating unreadable configuration as missing. Do not assume every CLI failure means the CLI is disabled.
 
-- `circle: reference|passive|inner|close|orbit|distant`
-  - `reference` = noted person, no contact intent, such as a public figure
-  - `passive` = relationship maintained without cadence
+## Reminder fields
 
-Optional:
+Use a configured `circle`: `reference`, `passive`, `inner`, `close`, `orbit`, or `distant`. `reference` means no contact intent; `passive` means no cadence reminders.
 
-- `cadence_days_override: <positive int>`
-- `snooze_until: <ISO date>` — hide until the date arrives
-- `next_action_at: <ISO date>` — explicit due-date override
-- `contact_channels_ordered_preference: [imessage, signal, email, ...]`
-- `periodic_contact_reminders: false` — mute cadence-based reminders while keeping the person's circle. A person with a cadence still surfaces when `next_action_at` is set. Default `true`. Use for "stop nudging me about X" or "no periodic reminders for X".
+The optional fields are:
 
-Preserve the user's other frontmatter. Derive `last_contacted` from `## Logged contacts`; never store it in frontmatter.
+- `cadence_days_override`: Positive integer replacing the circle cadence.
+- `snooze_until`: `YYYY-MM-DD` date; hide until that date. Expired snoozes can be removed.
+- `next_action_at`: `YYYY-MM-DD` due date replacing the cadence due date. Keep overdue dates until the action is completed or dismissed; clear the date after logging the intended contact.
+- `periodic_contact_reminders`: Defaults to `true`. Set `false` to mute cadence reminders while allowing `next_action_at` to surface the person.
+- `contact_channels_ordered_preference`: Ordered list of channel names, such as `[signal, email]`.
 
-Queue exclusion follows configured `cadence_days: null`. An explicit `next_action_at` does not override no-cadence exclusion.
-
-## Commands
-
-| Command | Use |
-|---------|-----|
-| `/fam-today` | Show ranked queue. Default includes scores at or above each circle's threshold. `--all` includes below-threshold rows, including people not yet due; exclusions still apply. `--circle X` filters, `--limit N` caps rows, `--json` returns structured output. `--include-snoozed` includes snoozed rows. Missing `circle` is persisted as `reference` under validation. |
-| `/fam-tend` | Create missing person notes through Templater. Default scans unresolved `[[@Name]]` links; `--person <name>` ensures only that named note exists. Existing notes are untouched. `--dry-run` previews creation without writing. |
-| `/fam-validate` | Check config and person notes. |
-
-From the repo, use `uv run fam-tend`, `uv run fam-today`, and `uv run fam-validate`. From another directory, use `uv --project "<plugin-root>" run <command>`.
-
-Mutating scripts validate the vault before and after work. Invalid config or person notes abort tending. Surface failed stub creation and validation errors before further edits.
+Circles configured without cadence stay out of the queue even with `next_action_at` set. See [contact queue](../../docs/DESIGN.md#contact-queue) for scoring.
 
 ## Log a contact
 
-Log only user-reported interactions or contacts established by evidence in the
-source. A backlink or dated filename alone does not establish contact. Scripts
-never infer contact history.
+1. Resolve the person note; ask if the name is ambiguous.
+2. Establish an actual interaction from the user's report or source evidence. A backlink, dated filename, calendar entry, or suggested outreach alone is insufficient.
+3. Resolve the date in the user's time zone. Ask if the date is unknown; do not assume today.
+4. Append a bullet under the exact `## Logged contacts` heading, for example: `- 2026-05-01 — coffee, talked about her dog`.
 
-For "log a coffee with Christina yesterday, talked about her dog":
+Derive `last_contacted` from this section; never store it in frontmatter. Missing logged history does not prove that no contact occurred.
 
-1. Resolve the person note. If multiple names match, ask which person.
-2. Resolve the date in the user's configured timezone: "yesterday" is one day earlier. Use an explicit date when supplied. For scheduled MCP queues, pass that timezone's current date as `on_date`; the server default uses its own local date.
-3. Append `- YYYY-MM-DD — coffee, talked about her dog` under `## Logged contacts`, replacing the date placeholder with the resolved ISO date.
-
-## Clean up overrides
-
-An expired `snooze_until` can be removed; the queue already ignores it once the date arrives.
-
-Keep `next_action_at` until its associated action is completed or the user dismisses it. A passed date means overdue, not completed.
+For scheduled MCP queues, pass the current date in the user's time zone as `on_date`; the server defaults to its own local date.
 
 ## Add a person
 
-For "start tracking @Jane Doe, met her at climbing gym, close circle":
-
-1. Check for an existing person note before creating one. Use the configured people folder or the user's existing layout.
-2. When a template is configured, run `fam-tend --person "Jane Doe"`; the tool handles Templater creation and retries. Otherwise create the note directly using the example template.
-3. Set `circle: close` on the resolved note, preserving template fields.
-4. Log the meeting with the date supplied by the user. Ask for the date if needed; do not assume the meeting happened today.
-
-See [example person](../../examples/@Jane%20Doe.md) and [person template](../../examples/person_template.md).
+Check for an existing note anywhere in the vault. If a template is configured, use `fam-tend --person "Jane Doe"`; otherwise create the note using the [person template](../../examples/person_template.md) in the configured folder or existing layout. Set the requested circle while preserving template fields. Log any reported interaction once its date is known.
 
 ## Relationship context
 
-Read relevant source notes when preparing outreach or updating relationship
-state. Add context under `## Other references` only when useful for that
-relationship. Do not copy every backlink, create summary placeholders, or
-maintain person indexes as part of tending.
+Read relevant source notes when preparing outreach or updating relationship state. Put useful context under `## Other references`; do not copy every backlink or add summary placeholders.
 
-An imported contact or social connection does not by itself establish friendship
-interest. A message, calendar event, or availability entry does not by itself
-establish an offline meeting or attendance. Missing logged contact does not prove
-that no contact occurred. Suggested outreach is not completed contact.
-
-FAM does not read or send through messaging channels. When a workflow separately
-authorizes external sources, use the available tools within that authorization
-and distinguish observed evidence from hypotheses. Report unavailable context
-without claiming to have read it. Relationship maintenance does not itself
-authorize sending messages or invitations, reactions, or editing messages.
-
-`fam-tend` requires no follow-up housekeeping. Existing notes and indexes are
-left unchanged. For `--dry-run`, present the preview without making edits.
-
-## Errors
-
-| Error | Fix |
-|-------|-----|
-| `obsidian: command not found` | Check Obsidian installation, CLI settings, and executable availability. |
-| `fam-circles.md not found` | Verify the selected vault, config path, and process permissions before creating config. |
-| `FAM_CIRCLES_PATH points to unreadable fam-circles.md` | Verify the path and process access; unreadable does not mean missing. |
-| `multiple fam-circles.md found` | Report matching paths; ask the user which config to keep. |
-| `unknown circle <X>` | Correct the circle name in frontmatter. |
-| `cadence_days_override must be int > 0` | Correct or remove the field. |
-| Stub creation fails | Surface the reported failures. Do not claim tending succeeded or raise timeouts without investigating. |
-
-Surface errors verbatim to the user.
+FAM does not read or send messages. Use external context only within separate authorization and report unavailable sources. Relationship maintenance alone does not authorize messages, invitations, reactions, or message edits.

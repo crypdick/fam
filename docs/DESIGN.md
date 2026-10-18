@@ -17,7 +17,7 @@ cadence need a positive integer `cadence_days` and a finite numeric
 `alert_threshold`. To turn off a circle's cadence, set both to `null`.
 Every person note must use a configured circle.
 
-For an initial configuration, create one `fam-circles.md` anywhere in the vault:
+Create one `fam-circles.md` anywhere in the vault:
 
 ````markdown
 ```yaml
@@ -28,9 +28,7 @@ circles:
 ```
 ````
 
-This defines a 30-day `close` circle. Add `inner`, `orbit`, or `distant` entries
-with your own cadence and threshold. A lower threshold includes people earlier.
-`0.0` includes them on their due date.
+This defines a 30-day `close` circle. Add other supported circles as needed. A lower threshold includes people earlier; `0.0` includes them on their due date.
 
 Automatic person creation also needs `people_folder` and `person_template`
 alongside `circles` in the same YAML block. Both paths are relative to the vault:
@@ -40,10 +38,7 @@ people_folder: People
 person_template: Templates/person_template.md
 ```
 
-Copy [person template](../examples/person_template.md) to your template folder
-and install Templater. Use static YAML frontmatter in the template.
-`processFrontMatter` inside a Templater block can lose fields during creation.
-The destination folder comes from `people_folder`.
+Copy the [person template](../examples/person_template.md) to your template folder and install Templater. Use static YAML frontmatter; `processFrontMatter` inside a Templater block can lose fields during creation. The caller sets the destination from `people_folder`; do not move the file in the template.
 
 ### Vault selection
 
@@ -135,9 +130,7 @@ days_overdue = (today - due_date).days
 score = days_overdue / cadence_days
 ```
 
-A score of `0` means due today. `1` means one full cadence overdue.
-For a 30-day cadence, six days overdue gives `0.20`. Six days before the due
-date gives `-0.20`.
+A score of `0` means due today; `1` means one full cadence overdue. For a 30-day cadence, six days overdue gives `0.20` and six days early gives `-0.20`.
 
 The queue includes scores at or above the circle's alert threshold. It sorts
 by descending score, then oldest contact date. Table output includes days
@@ -164,16 +157,9 @@ Use `fam-tend --person "Jane Doe"` to ensure one named person note exists
 without scanning vault mentions. Names may include the leading `@`; paths and
 wikilink syntax are rejected. An existing note anywhere in the vault is left
 unchanged. New notes use the configured `people_folder` and `person_template`.
-The tool handles creation retries and checks that Templater persisted the file.
+The tool retries creation and checks that Templater saved the file.
 
-`--dry-run` previews missing notes without invoking Templater or writing files.
-Repeated runs skip existing notes. Tending never rewrites contact history,
-reference sections, or indexes. The agent edits relationship state directly
-when useful; it does not need to finish housekeeping after a run.
-
-Existing generated contact bullets and reference placeholders remain in place.
-Removing them automatically could discard real interactions or user edits.
-Review questionable history against the source before correcting it.
+`--dry-run` previews missing notes without invoking Templater or writing files. Tending leaves existing notes and indexes unchanged and needs no follow-up housekeeping. Review questionable history against the source before correcting it.
 
 ## Validation and failures
 
@@ -186,11 +172,7 @@ during preflight. Other invalid notes stop writes. Validation failures name
 the affected note or configuration field. Failed template creation also
 produces a nonzero exit status.
 
-The Obsidian wrapper in `scripts/lib/vault.py` reports command failures.
-It doesn't preflight-check whether the app or command-line tool is available.
-Postflight failures leave written files in place. fam has no transaction
-rollback or concurrent-edit protection. Use your vault's backup and sync
-tools for recovery.
+The Obsidian wrapper in `scripts/lib/vault.py` calls the CLI without availability checks and reports failures. Postflight failures leave written files in place; there is no rollback or concurrent-edit protection. Use vault backups for recovery.
 
 fam doesn't integrate messaging channels, watch address books, generate
 Obsidian Bases, or manage birthdays. For checks and automation setup, see

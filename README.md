@@ -1,27 +1,26 @@
 # fam
 
-Personal CRM stored as plain markdown inside an Obsidian vault. Enables agents to help you with relationships: proactively nudging maintenance of relationships, surfacing context for upcoming interactions, helping prepare for meetings, learning from interaction history.
+Personal CRM in an Obsidian vault. Agents log contacts, suggest follow-ups, and help you review relationships using plain Markdown person notes.
 
 ## Usage
 
-Tell your agent to set things up :)
+Ask your agent to set up [circles and person notes](docs/DESIGN.md#configuration), then log interactions or review whom to contact.
 
 Remote agents can use the [MCP server](docs/MCP.md).
 
-Skills separate direct note operations from relationship reviews and background work:
+Use these skills for CRM work:
 
 - [fam](skills/fam/SKILL.md): person notes, contact logging, cadence, snoozes, and queue commands.
-- [fam-review](skills/fam-review/SKILL.md): an interactive review that turns your relationship choices into next steps and reminders.
-- [fam-garden](skills/fam-garden/SKILL.md): unattended intake and review preparation using configured sources and saved state.
+- [fam-review](skills/fam-review/SKILL.md): relationship reviews and next steps.
+- [fam-garden](skills/fam-garden/SKILL.md): unattended intake and review preparation.
 
-Schedules, source access, tracker paths, and personal exceptions stay in your task
-or vault configuration. Gardening saves unresolved decisions for a review with you.
+Keep schedules, source access, tracker paths, and personal exceptions in your task or vault configuration. Gardening saves unresolved decisions for review with you.
 
 ## Prerequisites
 
 - Obsidian app installed and running
-- Obsidian CLI enabled: **Settings → General → Command line interface**
-- (Optional) Templater plugin if you want to use `examples/person_template.md`
+- Obsidian CLI enabled: **Settings > General > Command line interface**
+- Templater plugin for automatic person-note creation
 - Python 3.13+ with `uv` (the plugin's scripts run via `uv run`)
 
 ## License
