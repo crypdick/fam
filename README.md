@@ -8,6 +8,15 @@ Tell your agent to set things up :)
 
 Remote agents can use the [MCP server](docs/MCP.md).
 
+Skills separate direct note operations from relationship reviews and background work:
+
+- [fam](skills/fam/SKILL.md): person notes, contact logging, cadence, snoozes, and queue commands.
+- [fam-review](skills/fam-review/SKILL.md): an interactive review that turns your relationship choices into next steps and reminders.
+- [fam-garden](skills/fam-garden/SKILL.md): unattended intake and review preparation using configured sources and saved state.
+
+Schedules, source access, tracker paths, and personal exceptions stay in your task
+or vault configuration. Gardening saves unresolved decisions for a review with you.
+
 ## Prerequisites
 
 - Obsidian app installed and running
