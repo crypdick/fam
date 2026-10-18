@@ -1,9 +1,27 @@
 ---
 name: fam
-description: Personal CRM. Ranks people due for contact. Reads/writes plain markdown in user's Obsidian vault. Use when user asks "who should I reach out to", "log lunch with X", "snooze Y until next month", or any relationship-maintenance prompt.
+description: Read and update FAM person notes, log reported contacts, manage cadence and snoozes, and show the contact queue in an Obsidian vault. Shared note and command contract for FAM review and gardening workflows.
 ---
 
 # fam — Personal CRM
+
+For an interactive relationship review, use [fam-review](../fam-review/SKILL.md).
+For unattended intake and review preparation, use [fam-garden](../fam-garden/SKILL.md).
+Direct requests such as logging a contact or snoozing someone use this skill alone.
+
+## Relationship decisions
+
+Read applicable vault instructions before writes. Use current notes and explicit
+user answers as relationship state. Preserve existing content, person-specific
+cadence, snoozes, muted reminders, and no-contact boundaries. A circle change does
+not implicitly cancel a cadence override. Confirm identity before merging name
+variants; matching names alone may refer to different people.
+
+Person notes own their contact history. If a separate tracker is configured, link
+to the person note rather than keeping a second contact log. Keep tentative
+prospects and hypotheses distinguishable from confirmed relationships and facts.
+An unanswered question does not establish disinterest or permission to change
+relationship state.
 
 ## Resolve context
 
@@ -15,7 +33,11 @@ For shorthand such as "mark the first one done" or "snooze number 2", read the r
 - `obsidian` CLI enabled: Settings → General → Command line interface
 - Templater plugin when `/fam-tend` creates stubs from `person_template`
 
-Use the repo's CLI commands. Surface failures verbatim; do not assume every CLI error means the CLI is disabled.
+Use the repo's CLI commands or the available FAM MCP tools described in
+[MCP tools](../../docs/MCP.md#tools). Remote tools may have a `fam_` prefix.
+MCP provides queue, discovery, reads, validation, and tending; other person edits
+use the available Obsidian file tools. Surface failures verbatim; do not assume
+every CLI error means the CLI is disabled.
 
 ## Vault contract
 
@@ -79,7 +101,7 @@ never infer contact history.
 For "log a coffee with Christina yesterday, talked about her dog":
 
 1. Resolve the person note. If multiple names match, ask which person.
-2. Resolve the date from today's date: "yesterday" is one day earlier. Use an explicit date when supplied.
+2. Resolve the date in the user's configured timezone: "yesterday" is one day earlier. Use an explicit date when supplied. For scheduled MCP queues, pass that timezone's current date as `on_date`; the server default uses its own local date.
 3. Append `- YYYY-MM-DD — coffee, talked about her dog` under `## Logged contacts`, replacing the date placeholder with the resolved ISO date.
 
 ## Clean up overrides
@@ -105,6 +127,17 @@ Read relevant source notes when preparing outreach or updating relationship
 state. Add context under `## Other references` only when useful for that
 relationship. Do not copy every backlink, create summary placeholders, or
 maintain person indexes as part of tending.
+
+An imported contact or social connection does not by itself establish friendship
+interest. A message, calendar event, or availability entry does not by itself
+establish an offline meeting or attendance. Missing logged contact does not prove
+that no contact occurred. Suggested outreach is not completed contact.
+
+FAM does not read or send through messaging channels. When a workflow separately
+authorizes external sources, use the available tools within that authorization
+and distinguish observed evidence from hypotheses. Report unavailable context
+without claiming to have read it. Relationship maintenance does not itself
+authorize sending messages or invitations, reactions, or editing messages.
 
 `fam-tend` requires no follow-up housekeeping. Existing notes and indexes are
 left unchanged. For `--dry-run`, present the preview without making edits.
