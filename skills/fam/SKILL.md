@@ -17,13 +17,19 @@ Person notes are the source of truth for contact history. Link to them from any 
 
 ## Tools and commands
 
-Use the CLI or available [FAM MCP tools](../../docs/MCP.md#tools). MCP tools may have a `fam_` prefix; other person edits use available Obsidian file tools.
+Use the CLI or available [FAM MCP tools](../../docs/MCP.md#tools). MCP tools may have a `fam_` prefix. Use these operations for contact logs and fam fields; use file tools for free-form relationship context.
 
-- `/fam-today` shows the ranked due queue. Use `--all` for scores below the threshold, `--include-snoozed` for snoozed people, `--circle NAME` to filter, `--limit N` to cap rows, or `--json` for structured output. Missing circles are repaired to `reference`.
-- `/fam-tend` creates notes from unresolved `[[@Name]]` links through Templater. `--person "Jane Doe"` ensures one named note exists. Existing notes stay unchanged. `--dry-run` previews without edits. No summaries or index maintenance follow tending.
-- `/fam-validate` checks configuration and person notes.
+- `fam today` shows the ranked queue without writes. Use `--all`, `--include-snoozed`, `--circle NAME`, `--limit N`, `--on-date YYYY-MM-DD`, or `--json`. Missing circles fail validation; explicitly set the intended circle with `fam person update PATH --circle NAME`.
+- `fam validate` checks configuration and person notes.
+- `fam person list [--circle NAME]` and `fam person show PATH` return JSON. Use exact paths from the list or queue for writes.
+- `fam person ensure "Jane Doe"` creates one named note through Templater if missing. `--dry-run` previews. MCP equivalent: `ensure_person`.
+- `fam tend --scan --dry-run` previews bulk creation from unresolved `[[@Name]]` links. Review candidates before rerunning without `--dry-run`. Existing notes stay unchanged; no summaries or index maintenance follow tending. MCP `tend` requires `scan: true`.
+- `fam person log-contact PATH --date YYYY-MM-DD --description "Context"` records an evidenced interaction. Add `--complete-action` only when completing the pending action. MCP equivalent: `log_contact` with `on_date`.
+- `fam person update PATH` sets fam fields through flags such as `--circle`, `--cadence-days-override`, `--snooze-until`, `--next-action-at`, `--no-periodic-contact-reminders`, and `--contact-channels-ordered-preference signal email`. `--clear FIELD` removes an optional schema field; repeat for multiple removals. Circle cannot be cleared. MCP equivalent: `update_person` with field arguments and a `clear` list.
 
-From the repository, use `uv run fam-today`, `uv run fam-tend`, or `uv run fam-validate`. Elsewhere, use `uv --project "PLUGIN_ROOT" run COMMAND`, replacing `PLUGIN_ROOT` with the repository path and `COMMAND` with a command name.
+From the repository, prefix commands with `uv run`. Elsewhere use
+`uv run --project "PLUGIN_ROOT" fam SUBCOMMAND ...`, replacing `PLUGIN_ROOT`
+with the repository path.
 
 CLI vault discovery needs Obsidian running with **Settings > General > Command line interface** enabled. Tending also needs Templater and the configured `people_folder` and `person_template`. Use static YAML frontmatter in templates; the caller sets the destination. See [configuration](../../docs/DESIGN.md#configuration) for setup.
 
@@ -48,7 +54,7 @@ Circles configured without cadence stay out of the queue even with `next_action_
 1. Resolve the person note; ask if the name is ambiguous.
 2. Establish an actual interaction from the user's report or source evidence. A backlink, dated filename, calendar entry, or suggested outreach alone is insufficient.
 3. Resolve the date in the user's time zone. Ask if the date is unknown; do not assume today.
-4. Append a bullet under the exact `## Logged contacts` heading, for example: `- 2026-05-01 — coffee, talked about her dog`.
+4. Use `fam person log-contact PATH --date YYYY-MM-DD --description "Context"` or MCP `log_contact`. The operation inserts the bullet under the real `## Logged contacts` heading, creates that section if absent, and deduplicates exact date/description retries. Distinguish separate same-day interactions in their descriptions. Add `--complete-action` only if this contact completes the pending action; otherwise its date remains unchanged.
 
 Derive `last_contacted` from this section; never store it in frontmatter. Missing logged history does not prove that no contact occurred.
 
@@ -56,7 +62,7 @@ For scheduled MCP queues, pass the current date in the user's time zone as `on_d
 
 ## Add a person
 
-Check for an existing note anywhere in the vault. If a template is configured, use `fam-tend --person "Jane Doe"`; otherwise create the note using the [person template](../../examples/person_template.md) in the configured folder or existing layout. Set the requested circle while preserving template fields. Log any reported interaction once its date is known.
+Check for an existing note anywhere in the vault. If a template is configured, use `fam person ensure "Jane Doe"` (MCP `ensure_person`); otherwise create the note using the [person template](../../examples/person_template.md) in the configured folder or existing layout. Use `fam person update PATH --circle NAME` to set the requested circle while preserving template fields. Log any reported interaction once its date is known.
 
 ## Relationship context
 

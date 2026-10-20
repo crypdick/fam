@@ -179,7 +179,6 @@ def test_get_vault_root_strips_whitespace(
     mock_call: MagicMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("OBSIDIAN_VAULT_PATH", raising=False)
-    monkeypatch.delenv("OBSIDIAN_VAULT_ROOT", raising=False)
     mock_call.return_value = "/home/user/Documents/MyVault\n"
     assert vault.get_vault_root() == Path("/home/user/Documents/MyVault")
 
@@ -189,7 +188,6 @@ def test_get_vault_root_ignores_obsidian_cli_stdout_warnings(
     mock_call: MagicMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("OBSIDIAN_VAULT_PATH", raising=False)
-    monkeypatch.delenv("OBSIDIAN_VAULT_ROOT", raising=False)
     mock_call.return_value = (
         "2026-05-04 20:52:39 Loading updated app package "
         "/opt/obsidian/obsidian-1.12.7.asar\n"

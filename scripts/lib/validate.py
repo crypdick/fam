@@ -22,7 +22,7 @@ class Report:
     errors: list[str] = field(default_factory=list)
 
 
-def preflight(vault_root: Path, *, default_missing_circle: bool = False) -> Report:
+def preflight(vault_root: Path, *, allow_missing_circle: Path | None = None) -> Report:
     errors: list[str] = []
     cfg = None
     try:
@@ -31,7 +31,7 @@ def preflight(vault_root: Path, *, default_missing_circle: bool = False) -> Repo
         errors.append(str(e))
     for path in person_mod.discover(vault_root):
         try:
-            loaded = person_mod.load(path, default_missing_circle=default_missing_circle)
+            loaded = person_mod.load(path, default_missing_circle=path == allow_missing_circle)
             if cfg is not None and loaded.circle not in cfg.circles:
                 errors.append(f"{path}: circle {loaded.circle!r} is not configured in {cfg.path}")
             errors.extend(
@@ -43,8 +43,8 @@ def preflight(vault_root: Path, *, default_missing_circle: bool = False) -> Repo
 
 
 @contextmanager
-def guard(vault_root: Path, *, default_missing_circle: bool = False) -> Iterator[None]:
-    pre = preflight(vault_root, default_missing_circle=default_missing_circle)
+def guard(vault_root: Path, *, allow_missing_circle: Path | None = None) -> Iterator[None]:
+    pre = preflight(vault_root, allow_missing_circle=allow_missing_circle)
     if not pre.ok:
         raise ValidationError("preflight failed:\n  " + "\n  ".join(pre.errors))
     try:

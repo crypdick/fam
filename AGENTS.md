@@ -17,7 +17,7 @@ Claude Code plugin. Personal CRM. Agent-driven, on top of plain-markdown person 
 
 ## Architecture rules
 
-- Scripts aggregate the queue and wrap Templater person creation. Other per-person CRUD = direct file edits.
+- One `fam` CLI owns queue reads, validation, Templater creation, contact logging, and fam-field updates. MCP is a thin adapter over shared operations. Free-form relationship context remains direct file edits.
 - Scripts never infer contact history from mentions or dated filenames. Agents log contacts from user reports or evidence of an actual interaction.
 - Every mutating script wraps work in `lib/validate.guard()` (preflight + postflight).
 - `last_contacted` pure-derived from `## Logged contacts`. Never store in frontmatter.

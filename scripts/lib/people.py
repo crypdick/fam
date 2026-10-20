@@ -1,0 +1,102 @@
+"""Person operations shared by CLI and MCP."""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from datetime import date
+from pathlib import Path
+from typing import Any
+
+from . import config, interactions, person, validate, vault
+
+EDITABLE_FIELDS = (
+    "circle",
+    "cadence_days_override",
+    "snooze_until",
+    "next_action_at",
+    "periodic_contact_reminders",
+    "contact_channels_ordered_preference",
+)
+OPTIONAL_FIELDS = EDITABLE_FIELDS[1:]
+
+
+def resolve_path(root: Path, path: str) -> Path:
+    """Require an exact, discovered vault-relative person path."""
+    relative = Path(path)
+    target = root / relative
+    if relative.is_absolute() or ".." in relative.parts or target not in person.discover(root):
+        raise ValueError("path must identify a discovered person note inside the vault")
+    return target
+
+
+def _summary(loaded: person.Person, root: Path) -> dict[str, Any]:
+    last = interactions.last_contacted(loaded)
+    return {
+        "name": loaded.name,
+        "circle": loaded.circle,
+        "path": str(loaded.path.relative_to(root)),
+        "last_contacted": last.isoformat() if last else None,
+    }
+
+
+def list_people(circle: str | None = None) -> list[dict[str, Any]]:
+    if circle is not None and circle not in person.CIRCLES:
+        raise ValueError("unknown circle")
+    root = vault.get_vault_root()
+    loaded = [person.load(path) for path in person.discover(root)]
+    return [_summary(p, root) for p in loaded if circle is None or p.circle == circle]
+
+
+def read_person(path: str) -> dict[str, Any]:
+    root = vault.get_vault_root()
+    target = resolve_path(root, path)
+    return {**_summary(person.load(target), root), "content": vault.read_text(target)}
+
+
+def update_person(
+    path: str, changes: dict[str, Any], clear: Sequence[str] | None = None
+) -> dict[str, Any]:
+    clear = clear or []
+    if not changes and not clear:
+        raise ValueError("provide at least one field to update or clear")
+    if any(key not in EDITABLE_FIELDS for key in changes):
+        raise ValueError("changes may contain only fam person fields")
+    if any(key not in OPTIONAL_FIELDS for key in clear):
+        raise ValueError("only optional fam person fields may be cleared")
+    if set(changes) & set(clear):
+        raise ValueError("cannot both set and clear the same field")
+    if any(value is None for value in changes.values()):
+        raise ValueError("use clear to remove fields; changes must not contain null")
+    root = vault.get_vault_root()
+    target = resolve_path(root, path)
+    # Only this target's missing circle may be repaired; all other errors block writes.
+    repair = target if "circle" in changes else None
+    loaded = person.with_updates(target, {**changes, **dict.fromkeys(clear)})
+    cfg = config.load(root)
+    if loaded.circle not in cfg.circles:
+        raise ValueError(f"circle {loaded.circle!r} is not configured in {cfg.path}")
+    with validate.guard(root, allow_missing_circle=repair):
+        person.write(loaded)
+    return _summary(loaded, root)
+
+
+def log_contact(
+    path: str, on_date: date, description: str, *, complete_action: bool = False
+) -> dict[str, Any]:
+    if type(on_date) is not date:
+        raise ValueError("contact date must be an explicit date")
+    if not description.strip() or any(char in description for char in "\r\n\x00"):
+        raise ValueError("description must be a nonempty single line")
+    description = description.strip()
+    root = vault.get_vault_root()
+    target = resolve_path(root, path)
+    with validate.guard(root):
+        loaded = person.load(target)
+        body = interactions.append_contact(loaded.body, on_date, description)
+        added = body != loaded.body
+        if added or (complete_action and loaded.next_action_at is not None):
+            loaded.body = body
+            if complete_action:
+                loaded.next_action_at = None
+            person.write(loaded)
+    return {**_summary(loaded, root), "added": added}

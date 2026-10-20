@@ -5,9 +5,9 @@ import tomllib
 from pathlib import Path
 
 
-def test_pyproject_exposes_fam_tend_console_script() -> None:
+def test_pyproject_exposes_one_fam_console_script() -> None:
     data = tomllib.loads(Path("pyproject.toml").read_text())
-    assert data["project"]["scripts"]["fam-tend"] == "scripts.fam_tend:main"
+    assert data["project"]["scripts"] == {"fam": "scripts.cli:main"}
 
 
 def test_plugin_and_package_versions_match():

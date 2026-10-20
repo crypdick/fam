@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import argparse
 import re
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -110,39 +108,19 @@ def _create_missing_stubs(
     return StubResult(created=created, retried=retried, failed=failed)
 
 
-def tend(*, person_name: str | None = None, dry_run: bool = False) -> StubResult:
+def tend(
+    *, person_name: str | None = None, scan: bool = False, dry_run: bool = False
+) -> StubResult:
+    if person_name is None and not scan:
+        raise config_mod.ConfigError("bulk creation requires explicit scan=True")
+    if person_name is not None and scan:
+        raise config_mod.ConfigError("choose either one person name or bulk scan")
     if person_name is not None:
         name = person_name.strip().removeprefix("@")
         if not name or any(ch in name for ch in "/\\[]|#*?\r\n"):
-            raise config_mod.ConfigError("--person must be a person name, not a path or wikilink")
+            raise config_mod.ConfigError("name must be a person name, not a path or wikilink")
         person_name = f"@{name}"
     vault_root = vault.get_vault_root()
     with validate.guard(vault_root):
         cfg = config_mod.load(vault_root)
         return _create_missing_stubs(vault_root, cfg, person_name=person_name, dry_run=dry_run)
-
-
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="fam-tend")
-    parser.add_argument(
-        "--person", help="ensure one named person note exists; skip vault link scan"
-    )
-    parser.add_argument("--dry-run", action="store_true", help="preview creation without writing")
-    args = parser.parse_args(argv)
-    try:
-        stubs = tend(person_name=args.person, dry_run=args.dry_run)
-    except (config_mod.ConfigError, validate.ValidationError, vault.ObsidianCliError, OSError) as e:
-        print(str(e), file=sys.stderr)
-        return 1
-    for name in stubs.planned:
-        print(f"would create stub: {name}")
-    for name in stubs.created:
-        marker = " (retried)" if name in stubs.retried else ""
-        print(f"created stub: {name}{marker}")
-    for failure in stubs.failed:
-        print(f"WARNING: failed stub creation: {failure}", file=sys.stderr)
-    return int(bool(stubs.failed))
-
-
-if __name__ == "__main__":
-    sys.exit(main())

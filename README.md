@@ -6,7 +6,22 @@ Personal CRM in an Obsidian vault. Agents log contacts, suggest follow-ups, and 
 
 Ask your agent to set up [circles and person notes](docs/DESIGN.md#configuration), then log interactions or review whom to contact.
 
-Remote agents can use the [MCP server](docs/MCP.md).
+Use one CLI with subcommands (from the repository, prefix these with `uv run`):
+
+```shell
+fam today --json
+fam validate
+fam person list
+fam person show "People/@Jane Doe.md"
+fam person ensure "Jane Doe"
+fam person log-contact "People/@Jane Doe.md" --date 2026-05-01 --description "Lunch"
+fam person update "People/@Jane Doe.md" --snooze-until 2026-06-01
+fam tend --scan --dry-run
+```
+
+See [person operations](docs/DESIGN.md#person-operations) for field removal and
+contact logging. Remote agents can use the same operations through the
+[optional MCP server](docs/MCP.md), started with `fam mcp`.
 
 Use these skills for CRM work:
 

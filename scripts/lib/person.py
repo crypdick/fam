@@ -72,16 +72,15 @@ def load(path: Path, *, default_missing_circle: bool = False) -> Person:
     return _load_post(path, post)
 
 
-def load_or_set_reference_circle(path: Path) -> Person:
-    """Load a person, defaulting missing `circle` frontmatter to `reference`."""
+def with_updates(path: Path, updates: dict[str, Any]) -> Person:
+    """Validate proposed frontmatter before writing; None removes a field."""
     post = _read_post(path)
-    missing_circle = "circle" not in post.metadata
-    if missing_circle:
-        post.metadata = {"circle": "reference", **post.metadata}
-    loaded = _load_post(path, post)
-    if missing_circle:
-        path.write_text(frontmatter.dumps(post), encoding="utf-8")
-    return loaded
+    for key, value in updates.items():
+        if value is None:
+            post.metadata.pop(key, None)
+        else:
+            post.metadata[key] = value
+    return _load_post(path, post)
 
 
 def _load_post(path: Path, post: frontmatter.Post) -> Person:

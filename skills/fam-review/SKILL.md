@@ -23,6 +23,8 @@ Turn their choices into next steps and timing. Change circles or cadence only wh
 
 ## Save decisions
 
+Use the shared fam contact-logging and field-update operations from [fam](../fam/SKILL.md) for mechanical writes. Use file edits for free-form relationship context.
+
 Save explicit answers and unresolved questions in the configured tracker or relationship notes. Keep contact history and reminder fields in person notes and link to them from the tracker.
 
 In configured review state, record whom you surfaced and what the user answered or deferred. Suggested outreach remains uncompleted; log only reported or evidenced interactions. Summarize the updates saved.

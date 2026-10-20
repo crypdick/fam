@@ -1,8 +1,9 @@
 # Design and reference
 
-fam stores person notes in an Obsidian vault. Scripts calculate the contact
-queue and create person notes through Templater. The agent edits individual
-notes to log contacts, change circles, or set reminders.
+fam stores person notes in an Obsidian vault. One `fam` CLI calculates the
+contact queue, validates notes, creates people through Templater, logs contacts,
+and updates fam fields. MCP exposes the same shared operations. Agents resolve
+identity, assess evidence, and edit free-form relationship context.
 
 ## Configuration
 
@@ -47,9 +48,8 @@ searches it for one `fam-circles.md`. Discovery excludes hidden directories
 and Syncthing conflict copies. Zero or multiple matches are errors.
 
 Set `FAM_VAULT_NAME` to select another registered vault for all `obsidian`
-calls. Automation can set `OBSIDIAN_VAULT_PATH` or `OBSIDIAN_VAULT_ROOT` to
-resolve the root without calling Obsidian. `OBSIDIAN_VAULT_PATH` takes
-precedence. `FAM_CIRCLES_PATH` selects a specific `fam-circles.md`, using
+calls. Automation can set `OBSIDIAN_VAULT_PATH` to resolve the root without
+calling Obsidian. `FAM_CIRCLES_PATH` selects a specific `fam-circles.md`, using
 either an absolute path or a path relative to that root.
 
 When combining a filesystem root override with `FAM_VAULT_NAME`, make sure
@@ -73,7 +73,7 @@ circle: close
 ```
 
 See [example person note](../examples/@Jane%20Doe.md) for a filled-out note.
-Run `/fam-validate` after setup.
+Run `fam validate` after setup.
 
 fam uses these fields and preserves other frontmatter and free-form body
 content:
@@ -87,8 +87,11 @@ content:
 | `periodic_contact_reminders` | Boolean, default `true`; `false` mutes cadence reminders unless `next_action_at` is set |
 | `contact_channels_ordered_preference` | List of channel names, such as `[signal, email]`; stored without sending or reading messages |
 
-The example template starts new people in `passive`. `fam-today` repairs
-existing notes missing `circle` by writing `circle: reference`.
+The example template starts new people in `passive`. Queue reads never repair
+notes. For a missing circle, explicitly run
+`fam person update "path/to/@Name.md" --circle reference` (or choose another
+configured circle). This permits only that target's missing-circle repair;
+other validation errors still stop writes.
 
 ### Contact history
 
@@ -116,7 +119,7 @@ expired snoozes without changing queue behavior.
 
 ## Contact queue
 
-Circles without a cadence stay out of the queue. `fam-today` also excludes
+Circles without a cadence stay out of the queue. `fam today` also excludes
 snoozed people by default. People with `periodic_contact_reminders: false`
 need a manual action date to appear.
 
@@ -138,6 +141,7 @@ since contact and days overdue. Missing dates appear as `-`.
 
 Use these options to change the output:
 
+- `--on-date YYYY-MM-DD` selects the scoring date; default is the local date.
 - `--all` includes scores below the threshold. Circle and reminder exclusions
   still apply.
 - `--include-snoozed` evaluates snoozed people as if the snooze were absent.
@@ -146,30 +150,86 @@ Use these options to change the output:
 - `--limit N` returns at most N rows.
 - `--json` returns structured rows. Infinite scores use the string `"inf"`.
 
-## Person creation
+## Person operations
 
-`fam-tend` creates missing person notes through the configured Templater
-template. With no filter, it scans unresolved `[[@Name]]` links. It skips
-literal code examples, path-prefixed links, hidden directories, and Syncthing
-conflict copies.
+`fam person list [--circle NAME]` returns names, circles, derived contact dates,
+and exact vault-relative paths as JSON. It includes inactive circles.
+`fam person show "People/@Jane Doe.md"` returns that summary plus original
+Markdown. Use paths returned by the list or queue for reads and writes;
+non-person paths, hidden notes, conflict copies, and symlink escapes are rejected.
 
-Use `fam-tend --person "Jane Doe"` to ensure one named person note exists
-without scanning vault mentions. Names may include the leading `@`; paths and
-wikilink syntax are rejected. An existing note anywhere in the vault is left
-unchanged. New notes use the configured `people_folder` and `person_template`.
-The tool retries creation and checks that Templater saved the file.
+### Creation
 
-`--dry-run` previews missing notes without invoking Templater or writing files. Tending leaves existing notes and indexes unchanged and needs no follow-up housekeeping. Review questionable history against the source before correcting it.
+`fam person ensure "Jane Doe"` creates one missing person note through the
+configured Templater template, without scanning mentions. Names may include the
+leading `@`; paths and wikilink syntax are rejected. An existing note anywhere
+in the vault is left unchanged. New notes use `people_folder` and
+`person_template`. Creation retries and checks that Templater saved the file.
+
+Bulk creation requires `fam tend --scan`. Preview with
+`fam tend --scan --dry-run`, then rerun without `--dry-run` if the candidates
+are appropriate. The scan finds unresolved `[[@Name]]` links, skipping literal
+code examples, path-prefixed links, hidden directories, and conflict copies.
+A mention alone does not establish identity, contact, or relationship intent.
+
+Both creation commands accept `--dry-run` and return JSON with `created`,
+`retried`, `failed`, and `planned`. A nonempty `failed` list produces a nonzero
+exit status, even with partial successes. Tending leaves existing notes and
+indexes unchanged and needs no follow-up housekeeping.
+
+### Contact logging
+
+```shell
+fam person log-contact "People/@Jane Doe.md" --date 2026-05-01 \
+    --description "Lunch, discussed weekend plans" --complete-action
+```
+
+The caller must establish an actual interaction and its date. No date is
+inferred. Description must be a nonempty single line. Logging appends a bullet
+inside the real `## Logged contacts` section, creating the section if missing.
+Duplicate real sections or an unclosed code fence preventing insertion fail
+without writing. Repeating the same date and description does not add another
+bullet; distinguish separate interactions in their descriptions.
+
+`--complete-action` explicitly removes `next_action_at`, including on a retry.
+Without it, the pending action stays unchanged. The JSON result includes the
+person summary and `added` indicating whether a bullet was added.
+
+### Field updates
+
+```shell
+fam person update "People/@Jane Doe.md" --circle close \
+    --cadence-days-override 30 --snooze-until 2026-06-01
+fam person update "People/@Jane Doe.md" --clear snooze_until --clear next_action_at
+```
+
+Supported flags are `--circle`, `--cadence-days-override`, `--snooze-until`,
+`--next-action-at`, `--periodic-contact-reminders`,
+`--no-periodic-contact-reminders`, and
+`--contact-channels-ordered-preference signal email`.
+Dates use `YYYY-MM-DD`; cadence must be a positive integer.
+
+Omitted fields stay unchanged. `--clear FIELD` is repeatable and removes an
+optional field using its schema name (for example `cadence_days_override`).
+Clearing reminder preference restores its default `true`; clearing channel
+preferences restores an empty list. Circle is required and cannot be cleared.
+Setting and clearing the same field is an error. At least one change is required.
+
+Updates validate proposed values and configured circle before writing. Circle
+changes preserve cadence overrides. Both write operations preserve unrelated
+frontmatter values and free-form content; YAML formatting can be normalized.
+Free-form context edits still use file tools. Relationship reviews, gardening
+orchestration, intake connectors, and message sending are not CLI operations.
 
 ## Validation and failures
 
-`fam-validate` checks configuration, every person's frontmatter, and logged
+`fam validate` checks configuration, every person's frontmatter, and logged
 contact bullets. It returns a nonzero exit status for errors.
 
 Mutating scripts use `scripts/lib/validate.py` to validate the whole vault
-before and after writes. `fam-today` permits only its missing-circle repair
-during preflight. Other invalid notes stop writes. Validation failures name
-the affected note or configuration field. Failed template creation also
+before and after writes. Explicit circle updates permit only the selected
+note's missing-circle repair during preflight. Other invalid notes stop writes.
+Validation failures name the affected note or configuration field. Failed template creation also
 produces a nonzero exit status.
 
 The Obsidian wrapper in `scripts/lib/vault.py` calls the CLI without availability checks and reports failures. Postflight failures leave written files in place; there is no rollback or concurrent-edit protection. Use vault backups for recovery.

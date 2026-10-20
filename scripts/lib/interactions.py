@@ -82,3 +82,31 @@ def logged_contact_errors(body: str) -> list[str]:
 def last_contacted(person: Person) -> date | None:
     bullets = parse_logged_contacts(person.body)
     return max((b.date for b in bullets), default=None)
+
+
+def append_contact(body: str, on_date: date, description: str) -> str:
+    """Append to one real contact section, deduplicating exact date/text retries."""
+    headings = [
+        match
+        for _, line in markdown_lines(body)
+        if (match := _HEADING_RE.match(line)) and match[1] == "##" and match[2] == "Logged contacts"
+    ]
+    if len(headings) > 1:
+        raise ValueError("multiple Logged contacts sections; resolve before logging")
+    contact = LoggedContact(on_date, description)
+    if contact in parse_logged_contacts(body):
+        return body
+    bullet = f"- {on_date.isoformat()} — {description}"
+    start, end = section_lines(body, "## Logged contacts")
+    if start == -1:
+        result = body.rstrip() + "\n\n## Logged contacts\n" + bullet + "\n"
+    else:
+        lines = body.splitlines()
+        # Insert before trailing blank lines so the next section stays separated.
+        while end > start and not lines[end - 1].strip():
+            end -= 1
+        lines.insert(end, bullet)
+        result = "\n".join(lines)
+    if contact not in parse_logged_contacts(result):
+        raise ValueError("cannot append contact inside an unclosed Markdown code fence")
+    return result

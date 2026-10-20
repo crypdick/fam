@@ -122,21 +122,18 @@ def test_today_includes_periodic_muted_with_next_action_at(mock_root, vault_root
 
 
 @patch("scripts.lib.vault.get_vault_root")
-def test_today_sets_missing_circle_to_reference_and_uses_circle_queue_rules(
-    mock_root, vault_root: Path
-) -> None:
+def test_today_rejects_missing_circle_without_writing(mock_root, vault_root: Path) -> None:
     mock_root.return_value = vault_root
     missing_circle = vault_root / "People" / "@Greta.md"
     missing_circle.write_text("---\nprofession: dev\n---\n\n## Logged contacts\n")
 
     from scripts import fam_today
+    from scripts.lib import validate
 
-    rows = fam_today.compute_rows(today=date(2026, 5, 15), include_below_threshold=True)
-
-    assert all(r.name != "Greta" for r in rows)
-    text = missing_circle.read_text()
-    assert "circle: reference" in text
-    assert "profession: dev" in text
+    before = missing_circle.read_bytes()
+    with pytest.raises(validate.ValidationError, match="missing required field `circle`"):
+        fam_today.compute_rows(today=date(2026, 5, 15), include_below_threshold=True)
+    assert missing_circle.read_bytes() == before
 
 
 @patch("scripts.lib.vault.get_vault_root")
@@ -164,10 +161,10 @@ def test_today_include_snoozed_keeps_real_scores_and_valid_json(mock_root, vault
 
 
 @patch("scripts.lib.vault.get_vault_root")
-def test_today_validates_before_repairing_missing_circles(mock_root, vault_root: Path):
+def test_today_rejects_invalid_dates_without_writing(mock_root, vault_root: Path):
     mock_root.return_value = vault_root
     bad = vault_root / "People" / "@Invalid.md"
-    bad.write_text("---\nsnooze_until: tomorrow\n---\n")
+    bad.write_text("---\ncircle: close\nsnooze_until: tomorrow\n---\n")
     before = {p: p.read_bytes() for p in vault_root.rglob("*.md")}
     from scripts import fam_today
     from scripts.lib import validate

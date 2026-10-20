@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -16,11 +17,20 @@ def test_mcp_queue_validation_and_person_reads(vault_root: Path, monkeypatch):
     async def check():
         async with Client(create_server()) as client:
             tools = {tool.name: tool for tool in await client.list_tools()}
-            assert set(tools) == {"today", "validate", "tend", "list_people", "read_person"}
+            assert set(tools) == {
+                "today",
+                "validate",
+                "tend",
+                "list_people",
+                "read_person",
+                "ensure_person",
+                "log_contact",
+                "update_person",
+            }
             assert tools["today"].annotations is not None
             assert tools["tend"].annotations is not None
             assert tools["read_person"].annotations is not None
-            assert tools["today"].annotations.read_only_hint is False
+            assert tools["today"].annotations.read_only_hint is True
             assert tools["tend"].annotations.read_only_hint is False
             assert tools["read_person"].annotations.read_only_hint is True
             report = await client.call_tool("validate", {})
@@ -66,7 +76,9 @@ def test_mcp_tend_previews_without_writing(vault_root: Path, monkeypatch):
 
     async def check():
         async with Client(create_server()) as client:
-            result = await client.call_tool("tend", {"person_name": "New Person", "dry_run": True})
+            result = await client.call_tool(
+                "ensure_person", {"person_name": "New Person", "dry_run": True}
+            )
             assert result.data == {
                 "created": [],
                 "retried": [],
@@ -121,7 +133,7 @@ def test_http_requires_auth_and_serves_real_mcp(vault_root: Path, tmp_path: Path
 
     monkeypatch.setenv("OBSIDIAN_VAULT_PATH", str(vault_root))
     missing_token = subprocess.run(
-        [sys.executable, "-m", "scripts.fam_mcp", "--transport", "http"],
+        [sys.executable, "-m", "scripts.cli", "mcp", "--transport", "http"],
         capture_output=True,
         text=True,
         env={
@@ -142,7 +154,8 @@ def test_http_requires_auth_and_serves_real_mcp(vault_root: Path, tmp_path: Path
             [
                 sys.executable,
                 "-m",
-                "scripts.fam_mcp",
+                "scripts.cli",
+                "mcp",
                 "--transport",
                 "http",
                 "--port",
@@ -182,3 +195,69 @@ def test_http_requires_auth_and_serves_real_mcp(vault_root: Path, tmp_path: Path
         finally:
             process.terminate()
             process.wait(timeout=10)
+
+
+def test_mcp_person_writes_and_explicit_scan(vault_root: Path, monkeypatch):
+    from scripts.lib import interactions, person
+
+    monkeypatch.setenv("OBSIDIAN_VAULT_PATH", str(vault_root))
+    path = vault_root / "People/@Alice.md"
+
+    async def check():
+        async with Client(create_server()) as client:
+            result = await client.call_tool(
+                "update_person",
+                {
+                    "path": "People/@Alice.md",
+                    "circle": "inner",
+                    "cadence_days_override": 14,
+                    "next_action_at": "2026-05-01",
+                    "periodic_contact_reminders": False,
+                },
+            )
+            assert result.data["circle"] == "inner"
+            result = await client.call_tool(
+                "log_contact",
+                {
+                    "path": "People/@Alice.md",
+                    "on_date": "2026-05-15",
+                    "description": "Lunch",
+                    "complete_action": True,
+                },
+            )
+            assert result.data["last_contacted"] == "2026-05-15"
+            assert result.data["added"] is True
+            await client.call_tool(
+                "update_person",
+                {
+                    "path": "People/@Alice.md",
+                    "clear": ["cadence_days_override"],
+                },
+            )
+            before = {p: p.read_bytes() for p in vault_root.rglob("*.md")}
+            for name, arguments in [
+                ("tend", {}),
+                ("tend", {"scan": False}),
+                ("update_person", {"path": "People/@Alice.md", "cadence_days_override": 0}),
+                ("update_person", {"path": "People/@Alice.md", "clear": ["profession"]}),
+                (
+                    "log_contact",
+                    {"path": "People/@Alice.md", "on_date": "tomorrow", "description": "Hi"},
+                ),
+                (
+                    "log_contact",
+                    {"path": "People/@Alice.md", "on_date": "2026-05-15", "description": "\n"},
+                ),
+                ("update_person", {"path": "../@Escape.md", "circle": "inner"}),
+            ]:
+                with pytest.raises(ToolError):
+                    await client.call_tool(name, arguments)
+            await client.call_tool("tend", {"scan": True, "dry_run": True})
+            assert {p: p.read_bytes() for p in vault_root.rglob("*.md")} == before
+
+    asyncio.run(check())
+    loaded = person.load(path)
+    assert interactions.last_contacted(loaded) == date(2026, 5, 15)
+    assert loaded.cadence_days_override is None
+    assert loaded.next_action_at is None
+    assert loaded.periodic_contact_reminders is False

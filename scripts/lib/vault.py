@@ -129,10 +129,9 @@ def get_vault_root() -> Path:
     when falling back to the CLI, treat the last absolute-path-looking line as
     the vault root.
     """
-    for env_name in ("OBSIDIAN_VAULT_PATH", "OBSIDIAN_VAULT_ROOT"):
-        configured = os.environ.get(env_name)
-        if configured:
-            return Path(configured).expanduser()
+    configured = os.environ.get("OBSIDIAN_VAULT_PATH")
+    if configured:
+        return Path(configured).expanduser()
     out = call(["vault", "info=path"])
     for line in reversed(out.splitlines()):
         text = line.strip()

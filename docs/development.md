@@ -11,12 +11,12 @@ uv run pyright scripts tests
 
 Tests use synthetic notes in `tests/fixtures/vault/`. Mutating tests copy the fixture through `vault_root`; never edit the source fixture or your personal vault. Obsidian responses are mocked. MCP tests cover tool calls and a local HTTP server with authentication.
 
-The supported repository commands are console scripts:
+Use one console script with subcommands:
 
 ```shell
-uv run fam-today --json
-uv run fam-tend --dry-run
-uv run fam-validate
+uv run fam today --json
+uv run fam tend --scan --dry-run
+uv run fam validate
 ```
 
 Commands use the selected Obsidian vault, not the working directory. See [vault selection](DESIGN.md#vault-selection) for environment overrides.
