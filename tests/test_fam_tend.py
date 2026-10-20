@@ -23,7 +23,7 @@ def test_tend_preserves_existing_notes_and_contact_dates(
     before = {p: p.read_bytes() for p in vault_root.rglob("*.md")}
     last_contact = interactions.last_contacted(person.load(bob))
 
-    fam_tend.tend(scan=True)
+    fam_tend.tend()
 
     assert interactions.last_contacted(person.load(bob)) == last_contact
     assert {p: p.read_bytes() for p in vault_root.rglob("*.md")} == before
@@ -98,7 +98,7 @@ def test_tend_creates_stub_for_unresolved_at_link(mock_create, mock_root, vault_
     note.write_text("Met [[@Stub Person]] at the party.\n")
     from scripts import fam_tend
 
-    stubs = fam_tend.tend(scan=True)
+    stubs = fam_tend.tend()
     assert "@Stub Person" in stubs.created
     assert "@Stub Person" not in stubs.retried
     mock_create.assert_called_once()
@@ -119,7 +119,7 @@ def test_tend_records_retry_when_create_needed_extra_attempt(
     note.write_text("Met [[@Flaky Stub]] today.\n")
     from scripts import fam_tend
 
-    stubs = fam_tend.tend(scan=True)
+    stubs = fam_tend.tend()
     assert "@Flaky Stub" in stubs.created
     assert "@Flaky Stub" in stubs.retried
 
@@ -140,7 +140,7 @@ def test_tend_records_failed_stub_when_retries_exhausted(mock_root, vault_root: 
         return 1
 
     with patch("scripts.lib.vault.create_from_template", side_effect=_flaky):
-        stubs = fam_tend.tend(scan=True)
+        stubs = fam_tend.tend()
     assert "@Easy Win" in stubs.created
     assert "@Hard Fail" not in stubs.created
     assert any("@Hard Fail" in f for f in stubs.failed)
@@ -157,7 +157,7 @@ def test_tend_skips_stub_creation_when_person_already_exists(
     note.write_text("Saw [[@Alice]] yesterday.\n")
     from scripts import fam_tend
 
-    stubs = fam_tend.tend(scan=True)
+    stubs = fam_tend.tend()
     assert "@Alice" not in stubs.created
     for call in mock_create.call_args_list:
         assert call.kwargs["file"] != Path("People/@Alice.md")
@@ -182,7 +182,7 @@ def test_tend_aborts_when_stub_config_missing(_create, mock_root, vault_root: Pa
     from scripts.lib import config
 
     with pytest.raises(config.ConfigError, match="people_folder"):
-        fam_tend.tend(scan=True)
+        fam_tend.tend()
 
 
 @patch("scripts.lib.vault.get_vault_root")
@@ -238,7 +238,7 @@ def test_tend_aborts_before_writes_on_invalid_person(
     from scripts.lib import validate
 
     with pytest.raises(validate.ValidationError, match="preflight failed"):
-        fam_tend.tend(scan=True)
+        fam_tend.tend()
 
     assert {p: p.read_bytes() for p in vault_root.rglob("*.md")} == before
     mock_create.assert_not_called()
@@ -249,7 +249,7 @@ def test_tend_main_reports_validation_failure(mock_root, vault_root: Path, capsy
     mock_root.return_value = vault_root
     (vault_root / "People" / "@Broken.md").write_text("---\ncircle: nonsense\n---\n")
 
-    assert cli.main(["tend", "--scan"]) == 1
+    assert cli.main(["tend"]) == 1
     assert "preflight failed" in capsys.readouterr().err
 
 
@@ -266,7 +266,7 @@ def test_tend_rejects_invalid_materialized_stub(mock_root, vault_root: Path) -> 
 
     with patch("scripts.lib.vault.create_from_template", side_effect=create_invalid):
         with pytest.raises(validate.ValidationError, match="unknown circle"):
-            fam_tend.tend(scan=True)
+            fam_tend.tend()
 
 
 @patch("scripts.lib.vault.get_vault_root")
@@ -278,11 +278,11 @@ def test_tend_main_fails_when_stub_creation_fails(mock_root, vault_root: Path, c
     with patch(
         "scripts.lib.vault.create_from_template", side_effect=vault.ObsidianCliError("failed")
     ):
-        assert cli.main(["tend", "--scan"]) == 1
+        assert cli.main(["tend"]) == 1
     assert json.loads(capsys.readouterr().out)["failed"] == ["@New Person: failed"]
 
 
-@pytest.mark.parametrize("args", [["tend", "--scan"], ["person", "ensure", "@New Person"]])
+@pytest.mark.parametrize("args", [["tend"], ["person", "ensure", "@New Person"]])
 @patch("scripts.lib.vault.get_vault_root")
 @patch("scripts.lib.vault.create_from_template")
 def test_dry_run_previews_creation_without_writes(
@@ -321,6 +321,6 @@ def test_created_stub_is_not_recreated(mock_create, mock_root, vault_root: Path)
         return 1
 
     mock_create.side_effect = create
-    assert fam_tend.tend(scan=True).created == ["@New Person"]
-    assert fam_tend.tend(scan=True).created == []
+    assert fam_tend.tend().created == ["@New Person"]
+    assert fam_tend.tend().created == []
     mock_create.assert_called_once()

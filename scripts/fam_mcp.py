@@ -71,7 +71,8 @@ def create_server(*, token: str | None = None) -> FastMCP:
         include_below_threshold. include_snoozed retains real scores and marks snoozes.
         Location matches a casefolded substring; tag and mode match whole list entries.
         Metadata filters combine before limit and never bypass queue exclusions.
-        If nobody meets their alert threshold, returns the highest-ranked eligible person.
+        If nobody meets their alert threshold, returns up to 10 highest-ranked eligible
+        people by default; limit overrides that count.
         """
         return fam_today.rows_as_dicts(
             fam_today.compute_rows(
@@ -92,13 +93,13 @@ def create_server(*, token: str | None = None) -> FastMCP:
         return asdict(validate.preflight(vault.get_vault_root()))
 
     @server.tool(annotations=mutating)
-    def tend(scan: Literal[True], dry_run: bool = False) -> dict[str, Any]:
-        """Explicit bulk creation from unresolved @ links; scan must be true.
+    def tend(dry_run: bool = False) -> dict[str, Any]:
+        """Bulk creation from unresolved @ links.
 
         Preview with dry_run first. Does not infer contacts or edit existing notes.
         Inspect failed for partial creation failures.
         """
-        return asdict(fam_tend.tend(scan=scan, dry_run=dry_run))
+        return asdict(fam_tend.tend(dry_run=dry_run))
 
     @server.tool(annotations=mutating)
     def ensure_person(person_name: str, dry_run: bool = False) -> dict[str, Any]:
@@ -109,9 +110,25 @@ def create_server(*, token: str | None = None) -> FastMCP:
         return asdict(fam_tend.tend(person_name=person_name, dry_run=dry_run))
 
     @server.tool(annotations=read_only)
-    def list_people(circle: Circle | None = None) -> list[dict[str, Any]]:
-        """List names, contact dates and exact paths, including inactive circles."""
-        return people.list_people(circle)
+    def list_people(
+        circle: Circle | None = None,
+        location: str | None = None,
+        relationship_tag: str | None = None,
+        interaction_preference: str | None = None,
+        limit: Limit | None = None,
+    ) -> list[dict[str, Any]]:
+        """List people by name, including inactive circles, snoozes and muted reminders.
+
+        Location matches a casefolded substring; tag and mode match whole list entries.
+        Filters combine before limit. Returns contact dates, metadata and exact paths.
+        """
+        return people.list_people(
+            circle,
+            location=location,
+            relationship_tag=relationship_tag,
+            interaction_preference=interaction_preference,
+            limit=limit,
+        )
 
     @server.tool(annotations=read_only)
     def read_person(path: str) -> dict[str, Any]:

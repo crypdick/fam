@@ -45,28 +45,62 @@ def print_json(value: Any) -> None:
     print(json.dumps(value, indent=2, allow_nan=False))
 
 
+def format_people(rows: list[dict[str, Any]]) -> str:
+    if not rows:
+        return "No people match this list (or --limit is 0)."
+    table = [["NAME", "CIRCLE", "LAST_CONTACTED", "LOCATION", "TAGS", "INTERACTION", "PATH"]]
+    for row in rows:
+        table.append(
+            [
+                row["name"],
+                row["circle"],
+                row["last_contacted"] or "-",
+                row["location"] or "-",
+                ", ".join(row["relationship_tags"]) or "-",
+                ", ".join(row["interaction_preferences"]) or "-",
+                row["path"],
+            ]
+        )
+    widths = [max(len(cell) for cell in column) for column in zip(*table, strict=True)]
+    return "\n".join(
+        "  ".join(cell.ljust(width) for cell, width in zip(row, widths, strict=True)).rstrip()
+        for row in table
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="fam")
     commands = parser.add_subparsers(dest="command", required=True)
-    today = commands.add_parser("today", help="show ranked contact queue (read-only)")
-    today.add_argument("--on-date", type=iso_date, default=None)
-    today.add_argument("--all", action="store_true", help="include below-threshold rows")
-    today.add_argument("--circle", choices=person.CIRCLES)
-    today.add_argument("--limit", type=nonnegative)
-    today.add_argument("--json", action="store_true")
-    today.add_argument("--include-snoozed", action="store_true")
-    today.add_argument("--location", help="case-insensitive location substring")
-    today.add_argument("--tag", help="case-insensitive relationship tag membership")
-    today.add_argument("--interaction", help="case-insensitive interaction preference membership")
+    list_options = argparse.ArgumentParser(add_help=False)
+    list_options.add_argument(
+        "--on-date", type=iso_date, default=None, help="scoring date (requires --today)"
+    )
+    list_options.add_argument(
+        "--all", action="store_true", help="include below-threshold queue rows (requires --today)"
+    )
+    list_options.add_argument("--circle", choices=person.CIRCLES)
+    list_options.add_argument("--limit", type=nonnegative)
+    list_options.add_argument("--json", action="store_true")
+    list_options.add_argument(
+        "--include-snoozed",
+        action="store_true",
+        help="include snoozed queue rows (requires --today)",
+    )
+    list_options.add_argument("--location", help="case-insensitive location substring")
+    list_options.add_argument("--tag", help="case-insensitive relationship tag membership")
+    list_options.add_argument(
+        "--interaction", help="case-insensitive interaction preference membership"
+    )
+    listing = commands.add_parser("list", parents=[list_options], help="list people (read-only)")
+    listing.add_argument("--today", action="store_true", help="show ranked contact queue")
+    today = commands.add_parser("today", parents=[list_options], help="alias for list --today")
+    today.set_defaults(today=True)
     check = commands.add_parser("validate", help="validate configuration and person notes")
     check.add_argument("--json", action="store_true")
     tend = commands.add_parser("tend", help="explicit bulk creation from unresolved @ links")
-    tend.add_argument("--scan", action="store_true", required=True)
     tend.add_argument("--dry-run", action="store_true")
     persons = commands.add_parser("person", help="read and update person notes")
     actions = persons.add_subparsers(dest="action", required=True)
-    listing = actions.add_parser("list", help="list person paths and contact dates as JSON")
-    listing.add_argument("--circle", choices=person.CIRCLES)
     show = actions.add_parser("show", help="read one person as JSON")
     show.add_argument("path")
     ensure = actions.add_parser("ensure", help="create one named person if missing")
@@ -95,8 +129,14 @@ def main(argv: list[str] | None = None) -> int:
     mcp.add_argument("--port", type=int, default=8000)
     mcp.add_argument("--token-file", default=os.environ.get("FAM_MCP_TOKEN_FILE"))
     args = parser.parse_args(argv)
+    if (
+        args.command == "list"
+        and not args.today
+        and (args.on_date is not None or args.all or args.include_snoozed)
+    ):
+        parser.error("--on-date, --all, and --include-snoozed require --today")
     try:
-        if args.command == "today":
+        if args.command in {"list", "today"} and args.today:
             fam_today.run(
                 today=args.on_date or date.today(),
                 json_out=args.json,
@@ -108,6 +148,18 @@ def main(argv: list[str] | None = None) -> int:
                 relationship_tag=args.tag,
                 interaction_preference=args.interaction,
             )
+        elif args.command == "list":
+            rows = people.list_people(
+                args.circle,
+                location=args.location,
+                relationship_tag=args.tag,
+                interaction_preference=args.interaction,
+                limit=args.limit,
+            )
+            if args.json:
+                print_json(rows)
+            else:
+                print(format_people(rows))
         elif args.command == "validate":
             report = validate.preflight(vault.get_vault_root())
             if args.json:
@@ -117,16 +169,13 @@ def main(argv: list[str] | None = None) -> int:
             return 0 if report.ok else 1
         elif args.command == "tend" or (args.command == "person" and args.action == "ensure"):
             result = fam_tend.tend(
-                scan=args.command == "tend",
                 person_name=args.name if args.command == "person" else None,
                 dry_run=args.dry_run,
             )
             print_json(asdict(result))
             return 1 if result.failed else 0
         elif args.command == "person":
-            if args.action == "list":
-                print_json(people.list_people(args.circle))
-            elif args.action == "show":
+            if args.action == "show":
                 print_json(people.read_person(args.path))
             elif args.action == "log-contact":
                 print_json(

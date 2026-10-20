@@ -45,12 +45,60 @@ def _summary(loaded: person.Person, root: Path) -> dict[str, Any]:
     }
 
 
-def list_people(circle: str | None = None) -> list[dict[str, Any]]:
+def matching_people(
+    root: Path,
+    *,
+    circle: str | None = None,
+    location: str | None = None,
+    relationship_tag: str | None = None,
+    interaction_preference: str | None = None,
+) -> list[person.Person]:
+    """Filter discovered people without applying contact-queue exclusions."""
     if circle is not None and circle not in person.CIRCLES:
         raise ValueError("unknown circle")
+    matches = []
+    for path in person.discover(root):
+        p = person.load(path)
+        if circle is not None and p.circle != circle:
+            continue
+        if location is not None and (
+            p.location is None or location.casefold() not in p.location.casefold()
+        ):
+            continue
+        if relationship_tag is not None and relationship_tag.casefold() not in {
+            tag.casefold() for tag in p.relationship_tags
+        }:
+            continue
+        if interaction_preference is not None and interaction_preference.casefold() not in {
+            preference.casefold() for preference in p.interaction_preferences
+        }:
+            continue
+        matches.append(p)
+    return matches
+
+
+def list_people(
+    circle: str | None = None,
+    *,
+    location: str | None = None,
+    relationship_tag: str | None = None,
+    interaction_preference: str | None = None,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    if limit is not None and (type(limit) is not int or limit < 0):
+        raise ValueError("limit must be a nonnegative integer")
     root = vault.get_vault_root()
-    loaded = [person.load(path) for path in person.discover(root)]
-    return [_summary(p, root) for p in loaded if circle is None or p.circle == circle]
+    loaded = matching_people(
+        root,
+        circle=circle,
+        location=location,
+        relationship_tag=relationship_tag,
+        interaction_preference=interaction_preference,
+    )
+    loaded.sort(key=lambda p: (p.name.casefold(), str(p.path)))
+    if limit is not None:
+        loaded = loaded[:limit]
+    return [_summary(p, root) for p in loaded]
 
 
 def read_person(path: str) -> dict[str, Any]:

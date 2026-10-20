@@ -72,6 +72,22 @@ def test_metadata_filters_allow_fallback_within_eligible_matches(metadata_vault,
 
 
 @pytest.mark.parametrize(
+    "arguments,expected",
+    [
+        (["--location", "STRASSE"], ["Alice", "Bob", "Carol", "Eve"]),
+        (["--tag", "FRIEND", "--limit", "2"], ["Alice", "Bob"]),
+        (["--tag", "fri"], []),
+        (["--interaction", "IN_PERSON", "--circle", "passive"], ["Carol"]),
+        (["--location", "francisco", "--tag", "family"], []),
+        (["--interaction", "call"], []),
+    ],
+)
+def test_full_list_metadata_filters(metadata_vault, capsys, arguments, expected):
+    assert main(["list", "--json", *arguments]) == 0
+    assert [row["name"] for row in json.loads(capsys.readouterr().out)] == expected
+
+
+@pytest.mark.parametrize(
     "field,value",
     [
         ("location", "[San Francisco]"),
@@ -189,6 +205,10 @@ def test_mcp_metadata_filter_update_read_and_clear(metadata_vault):
             assert (
                 next(row for row in people.data if row["name"] == "Alice")["location"] == "Oakland"
             )
+            filtered = await client.call_tool(
+                "list_people", {"relationship_tag": "FRIEND", "location": "strasse", "limit": 2}
+            )
+            assert [row["name"] for row in filtered.data] == ["Bob", "Carol"]
             await client.call_tool(
                 "update_person",
                 {

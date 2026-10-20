@@ -81,9 +81,7 @@ def test_mcp_queue_falls_back_below_threshold(vault_root: Path, monkeypatch):
 
     async def check():
         async with Client(create_server()) as client:
-            queue = await client.call_tool(
-                "today", {"on_date": "2026-05-15", "circle": "close"}
-            )
+            queue = await client.call_tool("today", {"on_date": "2026-05-15", "circle": "close"})
             assert [row["name"] for row in queue.data] == ["Alice"]
             assert queue.data[0]["score"] == pytest.approx(-7 / 30)
             assert queue.data[0]["days_overdue"] == -7
@@ -106,6 +104,8 @@ def test_mcp_tend_previews_without_writing(vault_root: Path, monkeypatch):
                 "failed": [],
                 "planned": ["@New Person"],
             }
+            result = await client.call_tool("tend", {"dry_run": True})
+            assert result.data == {"created": [], "retried": [], "failed": [], "planned": []}
 
     asyncio.run(check())
     assert {p: p.read_bytes() for p in vault_root.rglob("*.md")} == before
@@ -218,7 +218,7 @@ def test_http_requires_auth_and_serves_real_mcp(vault_root: Path, tmp_path: Path
             process.wait(timeout=10)
 
 
-def test_mcp_person_writes_and_explicit_scan(vault_root: Path, monkeypatch):
+def test_mcp_person_writes_and_tend(vault_root: Path, monkeypatch):
     from scripts.lib import interactions, person
 
     monkeypatch.setenv("OBSIDIAN_VAULT_PATH", str(vault_root))
@@ -257,8 +257,8 @@ def test_mcp_person_writes_and_explicit_scan(vault_root: Path, monkeypatch):
             )
             before = {p: p.read_bytes() for p in vault_root.rglob("*.md")}
             for name, arguments in [
-                ("tend", {}),
                 ("tend", {"scan": False}),
+                ("tend", {"scan": True}),
                 ("update_person", {"path": "People/@Alice.md", "cadence_days_override": 0}),
                 ("update_person", {"path": "People/@Alice.md", "clear": ["profession"]}),
                 (
@@ -273,7 +273,7 @@ def test_mcp_person_writes_and_explicit_scan(vault_root: Path, monkeypatch):
             ]:
                 with pytest.raises(ToolError):
                     await client.call_tool(name, arguments)
-            await client.call_tool("tend", {"scan": True, "dry_run": True})
+            await client.call_tool("tend", {"dry_run": True})
             assert {p: p.read_bytes() for p in vault_root.rglob("*.md")} == before
 
     asyncio.run(check())

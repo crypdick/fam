@@ -35,11 +35,13 @@ prevents startup. Clients send `Authorization: Bearer <token>` to `/mcp`.
 - `validate`: `{ok, errors}` for configuration and all person notes; no writes.
 - `ensure_person`: required `person_name` selects one note to create if missing.
   Optional `dry_run` previews creation without scanning mentions.
-- `tend`: bulk creation from unresolved `@` links; requires `scan: true`.
+- `tend`: bulk creation from unresolved `@` links.
   Preview with `dry_run: true`. Both creation tools return `created`, `retried`,
   `failed`, and `planned`; inspect `failed` even with partial successes.
 - `list_people`: names, circles, derived contact dates, metadata, and exact vault-relative
-  paths. Optional `circle` filter includes inactive circles too.
+  paths, sorted by name. Optional `circle`, `location`, `relationship_tag`,
+  `interaction_preference`, and nonnegative `limit` use the same filters as
+  `fam list`. Includes inactive circles, snoozed people, and muted reminders.
 - `read_person`: original Markdown and summary for an exact discovered `path`.
 - `log_contact`: required `path`, `on_date`, and single-line `description`.
   Exact date/description retries do not duplicate bullets. Optional

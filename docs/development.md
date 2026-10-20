@@ -15,7 +15,8 @@ Use one console script with subcommands:
 
 ```shell
 uv run fam today --json
-uv run fam tend --scan --dry-run
+uv run fam list
+uv run fam tend --dry-run
 uv run fam validate
 ```
 

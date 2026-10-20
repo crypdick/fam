@@ -175,8 +175,10 @@ def test_today_rejects_invalid_dates_without_writing(mock_root, vault_root: Path
     assert {p: p.read_bytes() for p in vault_root.rglob("*.md")} == before
 
 
-@pytest.mark.parametrize("limit,expected", [(None, ["Bob"]), (0, []), (3, ["Bob"])])
-def test_today_falls_back_to_highest_ranked_eligible_person(
+@pytest.mark.parametrize(
+    "limit,expected", [(None, ["Bob", "Alice", "Dan"]), (0, []), (3, ["Bob", "Alice", "Dan"])]
+)
+def test_today_falls_back_to_highest_ranked_eligible_people(
     vault_root: Path, monkeypatch, capsys, limit, expected
 ):
     from scripts.cli import main
@@ -203,6 +205,29 @@ def test_today_falls_back_to_highest_ranked_eligible_person(
         assert rows[0]["score"] == pytest.approx(-6 / 7)
         assert rows[0]["days_overdue"] == -6
     assert {p: p.read_bytes() for p in vault_root.rglob("*.md")} == before
+
+
+@pytest.mark.parametrize(
+    "options,expected_count",
+    [([], 10), (["--limit", "3"], 3), (["--limit", "12"], 12), (["--all"], 12)],
+)
+def test_today_fallback_defaults_to_ten(
+    vault_root: Path, monkeypatch, capsys, options, expected_count
+):
+    from scripts.cli import main
+
+    monkeypatch.setenv("OBSIDIAN_VAULT_PATH", str(vault_root))
+    for number in range(11):
+        (vault_root / f"People/@Suggestion {number}.md").write_text(
+            "---\ncircle: close\n---\n\n## Logged contacts\n- 2026-05-14 — call\n"
+        )
+    assert main(
+        ["today", "--on-date", "2026-05-15", "--circle", "close", "--json", *options]
+    ) == 0
+    rows = json.loads(capsys.readouterr().out)
+    assert len(rows) == expected_count
+    assert rows[0]["name"] == "Alice"
+    assert all(row["score"] < 0 for row in rows)
 
 
 def test_today_explains_empty_table(vault_root: Path, monkeypatch, capsys):
