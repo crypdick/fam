@@ -76,6 +76,21 @@ def test_mcp_queue_validation_and_person_reads(vault_root: Path, monkeypatch):
     asyncio.run(check())
 
 
+def test_mcp_queue_falls_back_below_threshold(vault_root: Path, monkeypatch):
+    monkeypatch.setenv("OBSIDIAN_VAULT_PATH", str(vault_root))
+
+    async def check():
+        async with Client(create_server()) as client:
+            queue = await client.call_tool(
+                "today", {"on_date": "2026-05-15", "circle": "close"}
+            )
+            assert [row["name"] for row in queue.data] == ["Alice"]
+            assert queue.data[0]["score"] == pytest.approx(-7 / 30)
+            assert queue.data[0]["days_overdue"] == -7
+
+    asyncio.run(check())
+
+
 def test_mcp_tend_previews_without_writing(vault_root: Path, monkeypatch):
     monkeypatch.setenv("OBSIDIAN_VAULT_PATH", str(vault_root))
     before = {p: p.read_bytes() for p in vault_root.rglob("*.md")}

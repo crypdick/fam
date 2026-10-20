@@ -48,6 +48,7 @@ def compute_rows(
         raise validate.ValidationError("preflight failed:\n  " + "\n  ".join(report.errors))
     cfg = config_mod.load(vault_root)
     rows: list[Row] = []
+    above_threshold: list[Row] = []
     for path in person.discover(vault_root):
         p = person.load(path)
         if circle is not None and p.circle != circle:
@@ -72,8 +73,6 @@ def compute_rows(
             continue
         scored_person = replace(p, snooze_until=None) if include_snoozed else p
         s = score.score(scored_person, last=last, today=today, config=cfg)
-        if not include_below_threshold and not score.in_queue(p, s, cfg):
-            continue
         # Any no-cadence circle (for example reference/passive) stays out of the queue.
         if cfg.circles[p.circle].cadence_days is None:
             continue
@@ -94,14 +93,27 @@ def compute_rows(
                 interaction_preferences=p.interaction_preferences,
             )
         )
+        if score.in_queue(p, s, cfg):
+            above_threshold.append(rows[-1])
     # Highest score first, including +inf at the very top.
-    rows = sorted(rows, key=lambda r: (-r.score, r.last_contacted or date.min))
+    rows = sorted(
+        rows if include_below_threshold else (above_threshold or rows),
+        key=lambda r: (-r.score, r.last_contacted or date.min),
+    )
+    if not include_below_threshold and not above_threshold:
+        rows = rows[:1]
     if limit is not None:
         rows = rows[:limit]
     return rows
 
 
 def _format_table(rows: list[Row]) -> str:
+    if not rows:
+        return (
+            "No eligible contacts match this queue (or --limit is 0). "
+            "Check filters, snoozes, and reminder settings; "
+            "use `fam person list` to inspect people outside the queue."
+        )
     header = (
         f"{'SCORE':>6}  {'CIRCLE':<8}  {'LAST_CONTACTED':<14}"
         f"  {'DAYS':>4}  {'DAYS_OVERDUE':>12}  PATH"

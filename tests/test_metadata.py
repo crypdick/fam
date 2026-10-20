@@ -64,9 +64,11 @@ def test_cli_metadata_filters_keep_queue_exclusions(metadata_vault, capsys, argu
         assert row["interaction_preferences"] == ["In_Person", "text"]
 
 
-def test_metadata_filters_do_not_bypass_threshold(metadata_vault, capsys):
+def test_metadata_filters_allow_fallback_within_eligible_matches(metadata_vault, capsys):
     assert main(["today", "--on-date", "2026-05-15", "--json", "--tag", "friend"]) == 0
-    assert json.loads(capsys.readouterr().out) == []
+    rows = json.loads(capsys.readouterr().out)
+    assert [row["name"] for row in rows] == ["Alice"]
+    assert rows[0]["score"] < 0
 
 
 @pytest.mark.parametrize(

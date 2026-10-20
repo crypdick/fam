@@ -27,6 +27,11 @@ Use the CLI or available [FAM MCP tools](../../docs/MCP.md#tools). MCP tools may
 - `fam person log-contact PATH --date YYYY-MM-DD --description "Context"` records an evidenced interaction. Add `--complete-action` only when completing the pending action. MCP equivalent: `log_contact` with `on_date`.
 - `fam person update PATH` sets fam fields through flags such as `--circle`, `--cadence-days-override`, `--snooze-until`, `--next-action-at`, `--no-periodic-contact-reminders`, `--contact-channels-ordered-preference signal email`, `--location TEXT`, `--relationship-tags friend family`, and `--interaction-preferences in_person call`. `--clear FIELD` removes an optional schema field; repeat for multiple removals. Circle cannot be cleared. MCP equivalent: `update_person` with field arguments and a `clear` list.
 
+When nobody meets their alert threshold, `fam today` suggests the single
+highest-ranked eligible person. Filters and exclusions still apply. Negative
+scores mean the suggestion is early. If nobody is eligible, table output
+explains the empty result; JSON remains `[]`.
+
 From the repository, prefix commands with `uv run`. Elsewhere use
 `uv run --project "PLUGIN_ROOT" fam SUBCOMMAND ...`, replacing `PLUGIN_ROOT`
 with the repository path.
