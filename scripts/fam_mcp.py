@@ -116,11 +116,16 @@ def create_server(*, token: str | None = None) -> FastMCP:
         relationship_tag: str | None = None,
         interaction_preference: str | None = None,
         limit: Limit | None = None,
+        sort_by: Literal["name", "score"] = "name",
+        on_date: date | None = None,
     ) -> list[dict[str, Any]]:
-        """List people by name, including inactive circles, snoozes and muted reminders.
+        """List people, including inactive circles, snoozes and muted reminders.
 
         Location matches a casefolded substring; tag and mode match whole list entries.
         Filters combine before limit. Returns contact dates, metadata and exact paths.
+        sort_by defaults to name; score sorts highest first, then oldest contact date.
+        Score sorting adds JSON-safe scores, with inactive/snoozed people at -inf.
+        on_date requires sort_by=score and defaults to the server-local date.
         """
         return people.list_people(
             circle,
@@ -128,6 +133,8 @@ def create_server(*, token: str | None = None) -> FastMCP:
             relationship_tag=relationship_tag,
             interaction_preference=interaction_preference,
             limit=limit,
+            sort_by=sort_by,
+            on_date=on_date,
         )
 
     @server.tool(annotations=read_only)

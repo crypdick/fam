@@ -11,6 +11,7 @@ Use one CLI with subcommands (from the repository, prefix these with `uv run`):
 ```shell
 fam today --json
 fam list
+fam list --sort score --limit 10
 fam list --location "San Francisco" --tag friend
 fam validate
 fam person show "People/@Jane Doe.md"

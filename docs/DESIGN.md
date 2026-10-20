@@ -134,9 +134,20 @@ combine as an intersection; missing metadata never matches. `--limit N`
 applies after filtering and sorting. `--json` returns person summaries instead
 of a table. An empty table explains that no people match; JSON returns `[]`.
 
+`--sort name` is the default. `--sort score` adds a score column and sorts
+highest first, then oldest contact date, then name and path. It uses the same
+score formula as the contact queue without excluding anyone: snoozed people
+and circles without a cadence have score `-inf` and sort last; muted reminders
+retain their calculated scores. Never-contacted people with an active cadence
+and no action date have score `inf`. JSON uses strings `"inf"` and `"-inf"`.
+Use `--on-date YYYY-MM-DD` with `--sort score` to select the scoring date;
+the default is the local date. Filters and sorting apply before `--limit`.
+Score sorting validates the vault and configuration before calculating scores.
+
 `fam list --today` selects the ranked contact queue described below.
 `fam today` is shorthand for the same command, with the same filters and output.
-Queue options `--on-date`, `--all`, and `--include-snoozed` require this mode.
+Queue options `--all` and `--include-snoozed` require this mode. The queue always
+sorts by score; `--sort name` is not supported with `--today`.
 
 ## Contact queue
 

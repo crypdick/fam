@@ -49,6 +49,9 @@ def format_people(rows: list[dict[str, Any]]) -> str:
     if not rows:
         return "No people match this list (or --limit is 0)."
     table = [["NAME", "CIRCLE", "LAST_CONTACTED", "LOCATION", "TAGS", "INTERACTION", "PATH"]]
+    show_score = "score" in rows[0]
+    if show_score:
+        table[0].insert(0, "SCORE")
     for row in rows:
         table.append(
             [
@@ -61,6 +64,9 @@ def format_people(rows: list[dict[str, Any]]) -> str:
                 row["path"],
             ]
         )
+        if show_score:
+            value = row["score"]
+            table[-1].insert(0, f"{value:.2f}" if isinstance(value, float) else str(value))
     widths = [max(len(cell) for cell in column) for column in zip(*table, strict=True)]
     return "\n".join(
         "  ".join(cell.ljust(width) for cell, width in zip(row, widths, strict=True)).rstrip()
@@ -73,7 +79,7 @@ def main(argv: list[str] | None = None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     list_options = argparse.ArgumentParser(add_help=False)
     list_options.add_argument(
-        "--on-date", type=iso_date, default=None, help="scoring date (requires --today)"
+        "--on-date", type=iso_date, default=None, help="scoring date (--today or --sort score)"
     )
     list_options.add_argument(
         "--all", action="store_true", help="include below-threshold queue rows (requires --today)"
@@ -93,6 +99,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     listing = commands.add_parser("list", parents=[list_options], help="list people (read-only)")
     listing.add_argument("--today", action="store_true", help="show ranked contact queue")
+    listing.add_argument(
+        "--sort",
+        choices=("name", "score"),
+        default=None,
+        help="sort by name (default) or descending score",
+    )
     today = commands.add_parser("today", parents=[list_options], help="alias for list --today")
     today.set_defaults(today=True)
     check = commands.add_parser("validate", help="validate configuration and person notes")
@@ -129,12 +141,14 @@ def main(argv: list[str] | None = None) -> int:
     mcp.add_argument("--port", type=int, default=8000)
     mcp.add_argument("--token-file", default=os.environ.get("FAM_MCP_TOKEN_FILE"))
     args = parser.parse_args(argv)
-    if (
-        args.command == "list"
-        and not args.today
-        and (args.on_date is not None or args.all or args.include_snoozed)
-    ):
-        parser.error("--on-date, --all, and --include-snoozed require --today")
+    if args.command == "list":
+        if args.today and args.sort == "name":
+            parser.error("--today always sorts by score")
+        if not args.today:
+            if args.all or args.include_snoozed:
+                parser.error("--all and --include-snoozed require --today")
+            if args.on_date is not None and args.sort != "score":
+                parser.error("--on-date requires --today or --sort score")
     try:
         if args.command in {"list", "today"} and args.today:
             fam_today.run(
@@ -155,6 +169,8 @@ def main(argv: list[str] | None = None) -> int:
                 relationship_tag=args.tag,
                 interaction_preference=args.interaction,
                 limit=args.limit,
+                sort_by=args.sort or "name",
+                on_date=args.on_date,
             )
             if args.json:
                 print_json(rows)
