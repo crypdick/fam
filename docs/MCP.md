@@ -42,6 +42,9 @@ prevents startup. Clients send `Authorization: Bearer <token>` to `/mcp`.
   paths, sorted by name. Optional `circle`, `location`, `relationship_tag`,
   `interaction_preference`, and nonnegative `limit` use the same filters as
   `fam list`. Includes inactive circles, snoozed people, and muted reminders.
+  `sort_by` accepts `name` (default) or `score`; score sorting adds JSON-safe
+  scores and accepts `on_date` (default: server-local date). See
+  [listing people](DESIGN.md#listing-people) for scoring and tie order.
 - `read_person`: original Markdown and summary for an exact discovered `path`.
 - `log_contact`: required `path`, `on_date`, and single-line `description`.
   Exact date/description retries do not duplicate bullets. Optional

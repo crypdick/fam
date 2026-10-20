@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
 from typing import Any
 
-from . import config, interactions, person, validate, vault
+from . import config, interactions, person, score, validate, vault
 
 EDITABLE_FIELDS = (
     "circle",
@@ -84,10 +85,22 @@ def list_people(
     relationship_tag: str | None = None,
     interaction_preference: str | None = None,
     limit: int | None = None,
+    sort_by: str = "name",
+    on_date: date | None = None,
 ) -> list[dict[str, Any]]:
     if limit is not None and (type(limit) is not int or limit < 0):
         raise ValueError("limit must be a nonnegative integer")
+    if sort_by not in {"name", "score"}:
+        raise ValueError("sort_by must be name or score")
+    if on_date is not None and sort_by != "score":
+        raise ValueError("on_date requires sorting by score")
     root = vault.get_vault_root()
+    cfg = None
+    if sort_by == "score":
+        report = validate.preflight(root)
+        if not report.ok:
+            raise validate.ValidationError("preflight failed:\n  " + "\n  ".join(report.errors))
+        cfg = config.load(root)
     loaded = matching_people(
         root,
         circle=circle,
@@ -96,9 +109,20 @@ def list_people(
         interaction_preference=interaction_preference,
     )
     loaded.sort(key=lambda p: (p.name.casefold(), str(p.path)))
+    rows = [_summary(p, root) for p in loaded]
+    if cfg is not None:
+        today = on_date or date.today()
+        for p, row in zip(loaded, rows, strict=True):
+            row["score"] = score.score(
+                p, last=interactions.last_contacted(p), today=today, config=cfg
+            )
+        rows.sort(key=lambda row: (-row["score"], row["last_contacted"] or ""))
+        for row in rows:
+            if math.isinf(row["score"]):
+                row["score"] = str(row["score"])
     if limit is not None:
-        loaded = loaded[:limit]
-    return [_summary(p, root) for p in loaded]
+        rows = rows[:limit]
+    return rows
 
 
 def read_person(path: str) -> dict[str, Any]:

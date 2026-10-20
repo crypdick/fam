@@ -34,6 +34,12 @@ Filters and exclusions still apply. Negative
 scores mean the suggestion is early. If nobody is eligible, table output
 explains the empty result; JSON remains `[]`.
 
+For the full directory ranked by score, use `fam list --sort score`, optionally
+with `--on-date YYYY-MM-DD`. Scores appear in the table or JSON; filters and
+sorting apply before `--limit`. Snoozed people and inactive circles remain
+visible with score `-inf`; muted reminders keep their calculated scores.
+MCP `list_people` accepts `sort_by: score` and optional `on_date`.
+
 From the repository, prefix commands with `uv run`. Elsewhere use
 `uv run --project "PLUGIN_ROOT" fam SUBCOMMAND ...`, replacing `PLUGIN_ROOT`
 with the repository path.

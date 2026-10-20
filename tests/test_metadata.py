@@ -209,6 +209,12 @@ def test_mcp_metadata_filter_update_read_and_clear(metadata_vault):
                 "list_people", {"relationship_tag": "FRIEND", "location": "strasse", "limit": 2}
             )
             assert [row["name"] for row in filtered.data] == ["Bob", "Carol"]
+            ranked = await client.call_tool(
+                "list_people",
+                {"sort_by": "score", "on_date": "2026-05-15", "relationship_tag": "friend"},
+            )
+            assert [row["name"] for row in ranked.data] == ["Bob", "Alice", "Carol", "Eve"]
+            assert ranked.data[0]["score"] == pytest.approx(13 / 7)
             await client.call_tool(
                 "update_person",
                 {

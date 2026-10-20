@@ -84,6 +84,34 @@ def test_empty_list_is_explicit(vault_root: Path, capsys):
     assert json.loads(capsys.readouterr().out) == []
 
 
+def test_list_sorts_by_score_without_queue_exclusions(vault_root: Path, capsys):
+    path = vault_root / "People/@Bob.md"
+    path.write_text(
+        path.read_text().replace(
+            "circle: inner", "circle: inner\nperiodic_contact_reminders: false"
+        )
+    )
+    before = {p: p.read_bytes() for p in vault_root.rglob("*.md")}
+    options = ["--sort", "score", "--on-date", "2026-05-15"]
+    assert run("list", *options, "--json") == 0
+    rows = json.loads(capsys.readouterr().out)
+    assert [row["name"] for row in rows] == ["Dan", "Bob", "Alice", "Carol", "Eve"]
+    assert [row["score"] for row in rows] == [
+        "inf",
+        pytest.approx(13 / 7),
+        pytest.approx(-7 / 30),
+        "-inf",
+        "-inf",
+    ]
+    assert run("list", *options, "--limit", "2", "--json") == 0
+    assert [row["name"] for row in json.loads(capsys.readouterr().out)] == ["Dan", "Bob"]
+    assert run("list", *options) == 0
+    table = capsys.readouterr().out
+    assert "SCORE" in table
+    assert "1.86" in table
+    assert {p: p.read_bytes() for p in vault_root.rglob("*.md")} == before
+
+
 def test_log_contact_preserves_context_and_requires_explicit_action_completion(vault_root: Path):
     path = vault_root / "People/@Alice.md"
     path.write_text(
@@ -284,6 +312,8 @@ def test_mutations_stop_on_other_invalid_notes(vault_root: Path):
         ("list", "--all"),
         ("list", "--include-snoozed"),
         ("list", "--on-date", "2026-05-15"),
+        ("list", "--sort", "unknown"),
+        ("list", "--today", "--sort", "name"),
         ("person", "list"),
         ("tend", "--scan"),
     ],
