@@ -71,6 +71,7 @@ def create_server(*, token: str | None = None) -> FastMCP:
         include_below_threshold. include_snoozed retains real scores and marks snoozes.
         Location matches a casefolded substring; tag and mode match whole list entries.
         Metadata filters combine before limit and never bypass queue exclusions.
+        If nobody meets their alert threshold, returns the highest-ranked eligible person.
         """
         return fam_today.rows_as_dicts(
             fam_today.compute_rows(

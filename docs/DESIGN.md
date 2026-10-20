@@ -138,8 +138,11 @@ score = days_overdue / cadence_days
 
 A score of `0` means due today; `1` means one full cadence overdue. For a 30-day cadence, six days overdue gives `0.20` and six days early gives `-0.20`.
 
-The queue includes scores at or above the circle's alert threshold. It sorts
-by descending score, then oldest contact date. Table output includes days
+The queue includes scores at or above the circle's alert threshold. If nobody
+meets their threshold, it returns the single highest-ranked eligible person
+below threshold. Snoozes, reminder settings, inactive circles, and requested
+filters still apply. It sorts by descending score, then oldest contact date.
+Table output includes days
 since contact and days overdue. Missing dates appear as `-`.
 
 Use these options to change the output:
@@ -162,6 +165,10 @@ muted reminders without action dates, and (unless requested) snoozes, even with
 `--all`. An empty queue does not prove that no matching person exists. Use
 `fam person list` and inspect notes when reviewing people outside the queue.
 JSON queue rows and person summaries include the three metadata fields.
+
+When no eligible people remain, table output explains the empty result and
+suggests checking filters and reminder settings. JSON output remains `[]`.
+`--limit 0` also returns no rows.
 
 ## Person operations
 

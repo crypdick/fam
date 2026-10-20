@@ -173,3 +173,41 @@ def test_today_rejects_invalid_dates_without_writing(mock_root, vault_root: Path
         fam_today.compute_rows(today=date(2026, 5, 15), include_below_threshold=True)
 
     assert {p: p.read_bytes() for p in vault_root.rglob("*.md")} == before
+
+
+@pytest.mark.parametrize("limit,expected", [(None, ["Bob"]), (0, []), (3, ["Bob"])])
+def test_today_falls_back_to_highest_ranked_eligible_person(
+    vault_root: Path, monkeypatch, capsys, limit, expected
+):
+    from scripts.cli import main
+
+    monkeypatch.setenv("OBSIDIAN_VAULT_PATH", str(vault_root))
+    for name in ("Alice", "Bob", "Dan"):
+        path = vault_root / f"People/@{name}.md"
+        text = path.read_text()
+        start = text.index("## Logged contacts")
+        end = text.index("## Other references")
+        path.write_text(
+            text[:start]
+            + "## Logged contacts\n- 2026-05-14 — call\n\n"
+            + text[end:]
+        )
+    before = {p: p.read_bytes() for p in vault_root.rglob("*.md")}
+    arguments = ["today", "--on-date", "2026-05-15", "--json"]
+    if limit is not None:
+        arguments.extend(["--limit", str(limit)])
+    assert main(arguments) == 0
+    rows = json.loads(capsys.readouterr().out)
+    assert [row["name"] for row in rows] == expected
+    if rows:
+        assert rows[0]["score"] == pytest.approx(-6 / 7)
+        assert rows[0]["days_overdue"] == -6
+    assert {p: p.read_bytes() for p in vault_root.rglob("*.md")} == before
+
+
+def test_today_explains_empty_table(vault_root: Path, monkeypatch, capsys):
+    from scripts.cli import main
+
+    monkeypatch.setenv("OBSIDIAN_VAULT_PATH", str(vault_root))
+    assert main(["today", "--circle", "passive"]) == 0
+    assert "No eligible contacts match this queue" in capsys.readouterr().out
