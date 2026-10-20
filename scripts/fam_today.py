@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from scripts.lib import config as config_mod
-from scripts.lib import interactions, person, score, validate, vault
+from scripts.lib import interactions, people, person, score, validate, vault
 
 
 @dataclass(frozen=True)
@@ -49,23 +49,14 @@ def compute_rows(
     cfg = config_mod.load(vault_root)
     rows: list[Row] = []
     above_threshold: list[Row] = []
-    for path in person.discover(vault_root):
-        p = person.load(path)
-        if circle is not None and p.circle != circle:
-            continue
+    for p in people.matching_people(
+        vault_root,
+        circle=circle,
+        location=location,
+        relationship_tag=relationship_tag,
+        interaction_preference=interaction_preference,
+    ):
         if not p.periodic_contact_reminders and p.next_action_at is None:
-            continue
-        if location is not None and (
-            p.location is None or location.casefold() not in p.location.casefold()
-        ):
-            continue
-        if relationship_tag is not None and relationship_tag.casefold() not in {
-            tag.casefold() for tag in p.relationship_tags
-        }:
-            continue
-        if interaction_preference is not None and interaction_preference.casefold() not in {
-            preference.casefold() for preference in p.interaction_preferences
-        }:
             continue
         last = interactions.last_contacted(p)
         snoozed = bool(p.snooze_until and today < p.snooze_until)
@@ -86,7 +77,7 @@ def compute_rows(
                 days=days,
                 days_overdue=do,
                 score=s,
-                path=path.relative_to(vault_root),
+                path=p.path.relative_to(vault_root),
                 snoozed=snoozed,
                 location=p.location,
                 relationship_tags=p.relationship_tags,
@@ -100,8 +91,8 @@ def compute_rows(
         rows if include_below_threshold else (above_threshold or rows),
         key=lambda r: (-r.score, r.last_contacted or date.min),
     )
-    if not include_below_threshold and not above_threshold:
-        rows = rows[:1]
+    if not include_below_threshold and not above_threshold and limit is None:
+        rows = rows[:10]
     if limit is not None:
         rows = rows[:limit]
     return rows
@@ -112,7 +103,7 @@ def _format_table(rows: list[Row]) -> str:
         return (
             "No eligible contacts match this queue (or --limit is 0). "
             "Check filters, snoozes, and reminder settings; "
-            "use `fam person list` to inspect people outside the queue."
+            "use `fam list` to inspect people outside the queue."
         )
     header = (
         f"{'SCORE':>6}  {'CIRCLE':<8}  {'LAST_CONTACTED':<14}"

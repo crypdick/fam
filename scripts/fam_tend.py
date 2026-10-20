@@ -108,13 +108,7 @@ def _create_missing_stubs(
     return StubResult(created=created, retried=retried, failed=failed)
 
 
-def tend(
-    *, person_name: str | None = None, scan: bool = False, dry_run: bool = False
-) -> StubResult:
-    if person_name is None and not scan:
-        raise config_mod.ConfigError("bulk creation requires explicit scan=True")
-    if person_name is not None and scan:
-        raise config_mod.ConfigError("choose either one person name or bulk scan")
+def tend(*, person_name: str | None = None, dry_run: bool = False) -> StubResult:
     if person_name is not None:
         name = person_name.strip().removeprefix("@")
         if not name or any(ch in name for ch in "/\\[]|#*?\r\n"):

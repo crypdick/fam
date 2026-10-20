@@ -120,6 +120,24 @@ Keep overdue `next_action_at` dates until you complete or cancel the action.
 After logging the intended contact, clear that action date. You can remove
 expired snoozes without changing queue behavior.
 
+## Listing people
+
+`fam list` shows all person notes as a table, sorted by name. It includes
+inactive circles, snoozed people, and muted reminders. Columns show name,
+circle, derived contact date, location, relationship tags, interaction
+preferences, and exact vault-relative path. Missing values appear as `-`.
+
+Use `--circle NAME`, `--location TEXT`, `--tag TAG`, and `--interaction VALUE`
+to filter people. Location matches a substring, ignoring case; tags and
+interaction preferences match whole list entries, ignoring case. Filters
+combine as an intersection; missing metadata never matches. `--limit N`
+applies after filtering and sorting. `--json` returns person summaries instead
+of a table. An empty table explains that no people match; JSON returns `[]`.
+
+`fam list --today` selects the ranked contact queue described below.
+`fam today` is shorthand for the same command, with the same filters and output.
+Queue options `--on-date`, `--all`, and `--include-snoozed` require this mode.
+
 ## Contact queue
 
 Circles without a cadence stay out of the queue. `fam today` also excludes
@@ -139,8 +157,9 @@ score = days_overdue / cadence_days
 A score of `0` means due today; `1` means one full cadence overdue. For a 30-day cadence, six days overdue gives `0.20` and six days early gives `-0.20`.
 
 The queue includes scores at or above the circle's alert threshold. If nobody
-meets their threshold, it returns the single highest-ranked eligible person
-below threshold. Snoozes, reminder settings, inactive circles, and requested
+meets their threshold, it returns up to 10 highest-ranked eligible people
+below threshold by default; `--limit N` overrides that count.
+Snoozes, reminder settings, inactive circles, and requested
 filters still apply. It sorts by descending score, then oldest contact date.
 Table output includes days
 since contact and days overdue. Missing dates appear as `-`.
@@ -163,7 +182,7 @@ Filters combine as an intersection and apply before `--limit`. Missing metadata
 never matches a requested filter. Filtered queues still exclude inactive circles,
 muted reminders without action dates, and (unless requested) snoozes, even with
 `--all`. An empty queue does not prove that no matching person exists. Use
-`fam person list` and inspect notes when reviewing people outside the queue.
+`fam list` and inspect notes when reviewing people outside the queue.
 JSON queue rows and person summaries include the three metadata fields.
 
 When no eligible people remain, table output explains the empty result and
@@ -172,8 +191,7 @@ suggests checking filters and reminder settings. JSON output remains `[]`.
 
 ## Person operations
 
-`fam person list [--circle NAME]` returns names, circles, derived contact dates,
-and exact vault-relative paths as JSON. It includes inactive circles.
+Use [`fam list`](#listing-people) to browse people and filter their metadata.
 `fam person show "People/@Jane Doe.md"` returns that summary plus original
 Markdown. Use paths returned by the list or queue for reads and writes;
 non-person paths, hidden notes, conflict copies, and symlink escapes are rejected.
@@ -186,8 +204,8 @@ leading `@`; paths and wikilink syntax are rejected. An existing note anywhere
 in the vault is left unchanged. New notes use `people_folder` and
 `person_template`. Creation retries and checks that Templater saved the file.
 
-Bulk creation requires `fam tend --scan`. Preview with
-`fam tend --scan --dry-run`, then rerun without `--dry-run` if the candidates
+`fam tend` creates missing person notes from unresolved links. Preview with
+`fam tend --dry-run`, then rerun without `--dry-run` if the candidates
 are appropriate. The scan finds unresolved `[[@Name]]` links, skipping literal
 code examples, path-prefixed links, hidden directories, and conflict copies.
 A mention alone does not establish identity, contact, or relationship intent.

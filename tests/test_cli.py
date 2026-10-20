@@ -21,7 +21,7 @@ def run(*args: str) -> int:
 
 
 def test_list_show_and_queue(vault_root: Path, capsys):
-    assert run("person", "list", "--circle", "passive") == 0
+    assert run("list", "--circle", "passive", "--json") == 0
     assert json.loads(capsys.readouterr().out) == [
         {
             "name": "Carol",
@@ -42,6 +42,46 @@ def test_list_show_and_queue(vault_root: Path, capsys):
     assert run("today", "--on-date", "2026-05-15", "--limit", "1", "--json") == 0
     assert json.loads(capsys.readouterr().out)[0]["name"] == "Dan"
     assert {p: p.read_bytes() for p in vault_root.rglob("*.md")} == before
+
+
+def test_full_list_table_and_json_include_everyone(vault_root: Path, capsys):
+    path = vault_root / "People/@Bob.md"
+    path.write_text(
+        path.read_text().replace(
+            "circle: inner", "circle: inner\nperiodic_contact_reminders: false"
+        )
+    )
+    before = {p: p.read_bytes() for p in vault_root.rglob("*.md")}
+    assert run("list") == 0
+    table = capsys.readouterr().out
+    assert "LAST_CONTACTED" in table
+    for name in ("Alice", "Bob", "Carol", "Dan", "Eve"):
+        assert name in table
+    assert run("list", "--json") == 0
+    assert [row["name"] for row in json.loads(capsys.readouterr().out)] == [
+        "Alice",
+        "Bob",
+        "Carol",
+        "Dan",
+        "Eve",
+    ]
+    assert {p: p.read_bytes() for p in vault_root.rglob("*.md")} == before
+
+
+@pytest.mark.parametrize("output", [[], ["--json"]])
+def test_today_is_list_today(vault_root: Path, capsys, output):
+    options = ["--on-date", "2026-05-15", "--limit", "2", *output]
+    assert run("today", *options) == 0
+    expected = capsys.readouterr().out
+    assert run("list", "--today", *options) == 0
+    assert capsys.readouterr().out == expected
+
+
+def test_empty_list_is_explicit(vault_root: Path, capsys):
+    assert run("list", "--circle", "distant") == 0
+    assert "No people match" in capsys.readouterr().out
+    assert run("list", "--limit", "0", "--json") == 0
+    assert json.loads(capsys.readouterr().out) == []
 
 
 def test_log_contact_preserves_context_and_requires_explicit_action_completion(vault_root: Path):
@@ -240,7 +280,12 @@ def test_mutations_stop_on_other_invalid_notes(vault_root: Path):
         ("person", "log-contact", "People/@Alice.md", "--description", "Coffee"),
         ("today", "--limit", "-1"),
         ("today", "--circle", "unknown"),
-        ("tend",),
+        ("list", "--limit", "-1"),
+        ("list", "--all"),
+        ("list", "--include-snoozed"),
+        ("list", "--on-date", "2026-05-15"),
+        ("person", "list"),
+        ("tend", "--scan"),
     ],
 )
 def test_invalid_cli_arguments_do_not_write(vault_root: Path, args):
@@ -271,12 +316,12 @@ def test_update_requires_unambiguous_changes(vault_root: Path, options):
     assert path.read_bytes() == before
 
 
-def test_ensure_and_explicit_scan_preview(vault_root: Path, capsys):
+def test_ensure_and_tend_preview(vault_root: Path, capsys):
     (vault_root / "Notes/new.md").write_text("[[@New Person]] and [[@Other Person]]")
     before = {p: p.read_bytes() for p in vault_root.rglob("*.md")}
     assert run("person", "ensure", "New Person", "--dry-run") == 0
     assert json.loads(capsys.readouterr().out)["planned"] == ["@New Person"]
-    assert run("tend", "--scan", "--dry-run") == 0
+    assert run("tend", "--dry-run") == 0
     assert json.loads(capsys.readouterr().out)["planned"] == ["@New Person", "@Other Person"]
     assert {p: p.read_bytes() for p in vault_root.rglob("*.md")} == before
 

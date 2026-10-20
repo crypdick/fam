@@ -10,13 +10,14 @@ Use one CLI with subcommands (from the repository, prefix these with `uv run`):
 
 ```shell
 fam today --json
+fam list
+fam list --location "San Francisco" --tag friend
 fam validate
-fam person list
 fam person show "People/@Jane Doe.md"
 fam person ensure "Jane Doe"
 fam person log-contact "People/@Jane Doe.md" --date 2026-05-01 --description "Lunch"
 fam person update "People/@Jane Doe.md" --snooze-until 2026-06-01
-fam tend --scan --dry-run
+fam tend --dry-run
 ```
 
 See [person operations](docs/DESIGN.md#person-operations) for field removal and
