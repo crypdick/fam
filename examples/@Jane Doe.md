@@ -1,6 +1,9 @@
 ---
 circle: close
 cadence_days_override: 21
+location: San Francisco
+relationship_tags: [friend]
+interaction_preferences: [in_person, text]
 contact_channels_ordered_preference: [imessage, email]
 ---
 

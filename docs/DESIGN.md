@@ -86,6 +86,9 @@ content:
 | `next_action_at` | `YYYY-MM-DD` date replacing the cadence-based due date |
 | `periodic_contact_reminders` | Boolean, default `true`; `false` mutes cadence reminders unless `next_action_at` is set |
 | `contact_channels_ordered_preference` | List of channel names, such as `[signal, email]`; stored without sending or reading messages |
+| `location` | Optional current location string, such as `San Francisco` |
+| `relationship_tags` | List of relationship categories, such as `[friend, colleague]` |
+| `interaction_preferences` | List of intended modes, such as `[in_person, call]` |
 
 The example template starts new people in `passive`. Queue reads never repair
 notes. For a missing circle, explicitly run
@@ -147,8 +150,18 @@ Use these options to change the output:
 - `--include-snoozed` evaluates snoozed people as if the snooze were absent.
   Threshold and other exclusions still apply; JSON rows retain `snoozed: true`.
 - `--circle NAME` filters to a circle.
+- `--location TEXT` matches a location substring, ignoring case.
+- `--tag TAG` matches a whole relationship tag, ignoring case.
+- `--interaction VALUE` matches a whole interaction preference, ignoring case.
 - `--limit N` returns at most N rows.
 - `--json` returns structured rows. Infinite scores use the string `"inf"`.
+
+Filters combine as an intersection and apply before `--limit`. Missing metadata
+never matches a requested filter. Filtered queues still exclude inactive circles,
+muted reminders without action dates, and (unless requested) snoozes, even with
+`--all`. An empty queue does not prove that no matching person exists. Use
+`fam person list` and inspect notes when reviewing people outside the queue.
+JSON queue rows and person summaries include the three metadata fields.
 
 ## Person operations
 
@@ -205,8 +218,11 @@ fam person update "People/@Jane Doe.md" --clear snooze_until --clear next_action
 
 Supported flags are `--circle`, `--cadence-days-override`, `--snooze-until`,
 `--next-action-at`, `--periodic-contact-reminders`,
-`--no-periodic-contact-reminders`, and
-`--contact-channels-ordered-preference signal email`.
+`--no-periodic-contact-reminders`,
+`--contact-channels-ordered-preference signal email`, `--location TEXT`,
+`--relationship-tags friend family`, and `--interaction-preferences in_person call`.
+Location must be a string; tag and preference fields must be lists of strings.
+Populate them only from supported context or explicit user choices.
 Dates use `YYYY-MM-DD`; cadence must be a positive integer.
 
 Omitted fields stay unchanged. `--clear FIELD` is repeatable and removes an

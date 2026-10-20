@@ -55,6 +55,9 @@ def main(argv: list[str] | None = None) -> int:
     today.add_argument("--limit", type=nonnegative)
     today.add_argument("--json", action="store_true")
     today.add_argument("--include-snoozed", action="store_true")
+    today.add_argument("--location", help="case-insensitive location substring")
+    today.add_argument("--tag", help="case-insensitive relationship tag membership")
+    today.add_argument("--interaction", help="case-insensitive interaction preference membership")
     check = commands.add_parser("validate", help="validate configuration and person notes")
     check.add_argument("--json", action="store_true")
     tend = commands.add_parser("tend", help="explicit bulk creation from unresolved @ links")
@@ -82,6 +85,9 @@ def main(argv: list[str] | None = None) -> int:
     update.add_argument("--next-action-at", type=iso_date)
     update.add_argument("--periodic-contact-reminders", action=argparse.BooleanOptionalAction)
     update.add_argument("--contact-channels-ordered-preference", nargs="+")
+    update.add_argument("--location")
+    update.add_argument("--relationship-tags", nargs="+")
+    update.add_argument("--interaction-preferences", nargs="+")
     update.add_argument("--clear", choices=people.OPTIONAL_FIELDS, action="append", default=[])
     mcp = commands.add_parser("mcp", help="serve optional MCP interface")
     mcp.add_argument("--transport", choices=("stdio", "http"), default="stdio")
@@ -98,6 +104,9 @@ def main(argv: list[str] | None = None) -> int:
                 circle=args.circle,
                 include_snoozed=args.include_snoozed,
                 limit=args.limit,
+                location=args.location,
+                relationship_tag=args.tag,
+                interaction_preference=args.interaction,
             )
         elif args.command == "validate":
             report = validate.preflight(vault.get_vault_root())

@@ -23,6 +23,9 @@ OptionalField = Literal[
     "next_action_at",
     "periodic_contact_reminders",
     "contact_channels_ordered_preference",
+    "location",
+    "relationship_tags",
+    "interaction_preferences",
 ]
 Limit = Annotated[int, Field(ge=0)]
 Cadence = Annotated[int, Field(gt=0)]
@@ -58,11 +61,16 @@ def create_server(*, token: str | None = None) -> FastMCP:
         circle: Circle | None = None,
         include_snoozed: bool = False,
         limit: Limit | None = None,
+        location: str | None = None,
+        relationship_tag: str | None = None,
+        interaction_preference: str | None = None,
     ) -> list[dict[str, Any]]:
         """Rank who to contact without writes. on_date defaults to server-local date.
 
         Inactive circles and muted reminders without action dates stay out even with
         include_below_threshold. include_snoozed retains real scores and marks snoozes.
+        Location matches a casefolded substring; tag and mode match whole list entries.
+        Metadata filters combine before limit and never bypass queue exclusions.
         """
         return fam_today.rows_as_dicts(
             fam_today.compute_rows(
@@ -71,6 +79,9 @@ def create_server(*, token: str | None = None) -> FastMCP:
                 circle=circle,
                 include_snoozed=include_snoozed,
                 limit=limit,
+                location=location,
+                relationship_tag=relationship_tag,
+                interaction_preference=interaction_preference,
             )
         )
 
@@ -126,6 +137,9 @@ def create_server(*, token: str | None = None) -> FastMCP:
         next_action_at: date | None = None,
         periodic_contact_reminders: bool | None = None,
         contact_channels_ordered_preference: list[str] | None = None,
+        location: str | None = None,
+        relationship_tags: list[str] | None = None,
+        interaction_preferences: list[str] | None = None,
         clear: list[OptionalField] | None = None,
     ) -> dict[str, Any]:
         """Set fam fields, or remove optional fields named in clear. Other content survives.
@@ -140,6 +154,9 @@ def create_server(*, token: str | None = None) -> FastMCP:
             "next_action_at": next_action_at,
             "periodic_contact_reminders": periodic_contact_reminders,
             "contact_channels_ordered_preference": contact_channels_ordered_preference,
+            "location": location,
+            "relationship_tags": relationship_tags,
+            "interaction_preferences": interaction_preferences,
         }
         return people.update_person(
             path, {k: v for k, v in changes.items() if v is not None}, clear

@@ -26,7 +26,10 @@ prevents startup. Clients send `Authorization: Bearer <token>` to `/mcp`.
 ## Tools
 
 - `today`: read-only ranked queue with optional `on_date`,
-  `include_below_threshold`, `circle`, `include_snoozed`, and nonnegative `limit`.
+  `include_below_threshold`, `circle`, `include_snoozed`, nonnegative `limit`,
+  `location` (case-insensitive substring), `relationship_tag`, and
+  `interaction_preference` (case-insensitive whole-list membership). Filters
+  combine before limit and retain all queue exclusions.
   Default date uses the server's local timezone. Missing circles fail validation;
   repair explicitly through `update_person`.
 - `validate`: `{ok, errors}` for configuration and all person notes; no writes.
@@ -35,7 +38,7 @@ prevents startup. Clients send `Authorization: Bearer <token>` to `/mcp`.
 - `tend`: bulk creation from unresolved `@` links; requires `scan: true`.
   Preview with `dry_run: true`. Both creation tools return `created`, `retried`,
   `failed`, and `planned`; inspect `failed` even with partial successes.
-- `list_people`: names, circles, derived contact dates, and exact vault-relative
+- `list_people`: names, circles, derived contact dates, metadata, and exact vault-relative
   paths. Optional `circle` filter includes inactive circles too.
 - `read_person`: original Markdown and summary for an exact discovered `path`.
 - `log_contact`: required `path`, `on_date`, and single-line `description`.
@@ -44,7 +47,8 @@ prevents startup. Clients send `Authorization: Bearer <token>` to `/mcp`.
   Returns person summary and `added`.
 - `update_person`: required `path` plus fields to set: `circle`,
   `cadence_days_override`, `snooze_until`, `next_action_at`,
-  `periodic_contact_reminders`, or `contact_channels_ordered_preference`.
+  `periodic_contact_reminders`, `contact_channels_ordered_preference`,
+  `location`, `relationship_tags`, or `interaction_preferences`.
   Omitted/null arguments preserve fields. `clear` lists optional schema fields
   to remove; setting and clearing the same field fails. Cannot clear circle.
   Returns updated person summary.

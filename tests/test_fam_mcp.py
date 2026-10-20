@@ -46,6 +46,9 @@ def test_mcp_queue_validation_and_person_reads(vault_root: Path, monkeypatch):
                     "score": "inf",
                     "path": "People/@Dan.md",
                     "snoozed": False,
+                    "location": None,
+                    "relationship_tags": [],
+                    "interaction_preferences": [],
                 }
             ]
             people = await client.call_tool("list_people", {"circle": "passive"})
@@ -55,6 +58,9 @@ def test_mcp_queue_validation_and_person_reads(vault_root: Path, monkeypatch):
                     "circle": "passive",
                     "path": "People/@Carol.md",
                     "last_contacted": None,
+                    "location": None,
+                    "relationship_tags": [],
+                    "interaction_preferences": [],
                 }
             ]
             note = await client.call_tool("read_person", {"path": "People/@Alice.md"})

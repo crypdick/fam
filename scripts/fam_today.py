@@ -22,6 +22,9 @@ class Row:
     score: float
     path: Path
     snoozed: bool
+    location: str | None
+    relationship_tags: list[str]
+    interaction_preferences: list[str]
 
 
 def compute_rows(
@@ -31,6 +34,9 @@ def compute_rows(
     circle: str | None = None,
     include_snoozed: bool = False,
     limit: int | None = None,
+    location: str | None = None,
+    relationship_tag: str | None = None,
+    interaction_preference: str | None = None,
 ) -> list[Row]:
     vault_root = vault.get_vault_root()
     if limit is not None and (type(limit) is not int or limit < 0):
@@ -47,6 +53,18 @@ def compute_rows(
         if circle is not None and p.circle != circle:
             continue
         if not p.periodic_contact_reminders and p.next_action_at is None:
+            continue
+        if location is not None and (
+            p.location is None or location.casefold() not in p.location.casefold()
+        ):
+            continue
+        if relationship_tag is not None and relationship_tag.casefold() not in {
+            tag.casefold() for tag in p.relationship_tags
+        }:
+            continue
+        if interaction_preference is not None and interaction_preference.casefold() not in {
+            preference.casefold() for preference in p.interaction_preferences
+        }:
             continue
         last = interactions.last_contacted(p)
         snoozed = bool(p.snooze_until and today < p.snooze_until)
@@ -71,6 +89,9 @@ def compute_rows(
                 score=s,
                 path=path.relative_to(vault_root),
                 snoozed=snoozed,
+                location=p.location,
+                relationship_tags=p.relationship_tags,
+                interaction_preferences=p.interaction_preferences,
             )
         )
     # Highest score first, including +inf at the very top.
@@ -107,6 +128,9 @@ def rows_as_dicts(rows: list[Row]) -> list[dict[str, Any]]:
             "score": ("inf" if r.score == float("inf") else r.score),
             "path": str(r.path),
             "snoozed": r.snoozed,
+            "location": r.location,
+            "relationship_tags": r.relationship_tags,
+            "interaction_preferences": r.interaction_preferences,
         }
         for r in rows
     ]
@@ -124,6 +148,9 @@ def run(
     circle: str | None = None,
     include_snoozed: bool = False,
     limit: int | None = None,
+    location: str | None = None,
+    relationship_tag: str | None = None,
+    interaction_preference: str | None = None,
 ) -> None:
     rows = compute_rows(
         today=today,
@@ -131,5 +158,8 @@ def run(
         circle=circle,
         include_snoozed=include_snoozed,
         limit=limit,
+        location=location,
+        relationship_tag=relationship_tag,
+        interaction_preference=interaction_preference,
     )
     print(_format_json(rows) if json_out else _format_table(rows))

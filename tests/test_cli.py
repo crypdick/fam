@@ -23,7 +23,15 @@ def run(*args: str) -> int:
 def test_list_show_and_queue(vault_root: Path, capsys):
     assert run("person", "list", "--circle", "passive") == 0
     assert json.loads(capsys.readouterr().out) == [
-        {"name": "Carol", "circle": "passive", "last_contacted": None, "path": "People/@Carol.md"}
+        {
+            "name": "Carol",
+            "circle": "passive",
+            "last_contacted": None,
+            "path": "People/@Carol.md",
+            "location": None,
+            "relationship_tags": [],
+            "interaction_preferences": [],
+        }
     ]
     assert run("person", "show", "People/@Alice.md") == 0
     assert (

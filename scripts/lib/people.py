@@ -16,6 +16,9 @@ EDITABLE_FIELDS = (
     "next_action_at",
     "periodic_contact_reminders",
     "contact_channels_ordered_preference",
+    "location",
+    "relationship_tags",
+    "interaction_preferences",
 )
 OPTIONAL_FIELDS = EDITABLE_FIELDS[1:]
 
@@ -36,6 +39,9 @@ def _summary(loaded: person.Person, root: Path) -> dict[str, Any]:
         "circle": loaded.circle,
         "path": str(loaded.path.relative_to(root)),
         "last_contacted": last.isoformat() if last else None,
+        "location": loaded.location,
+        "relationship_tags": loaded.relationship_tags,
+        "interaction_preferences": loaded.interaction_preferences,
     }
 
 

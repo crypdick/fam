@@ -19,13 +19,13 @@ Person notes are the source of truth for contact history. Link to them from any 
 
 Use the CLI or available [FAM MCP tools](../../docs/MCP.md#tools). MCP tools may have a `fam_` prefix. Use these operations for contact logs and fam fields; use file tools for free-form relationship context.
 
-- `fam today` shows the ranked queue without writes. Use `--all`, `--include-snoozed`, `--circle NAME`, `--limit N`, `--on-date YYYY-MM-DD`, or `--json`. Missing circles fail validation; explicitly set the intended circle with `fam person update PATH --circle NAME`.
+- `fam today` shows the ranked queue without writes. Use `--all`, `--include-snoozed`, `--circle NAME`, `--limit N`, `--on-date YYYY-MM-DD`, `--location TEXT`, `--tag TAG`, `--interaction VALUE`, or `--json`. Location uses a case-insensitive substring; tag and mode use whole-list membership. Filters retain all queue exclusions, even with `--all`. Missing circles fail validation; explicitly set the intended circle with `fam person update PATH --circle NAME`.
 - `fam validate` checks configuration and person notes.
 - `fam person list [--circle NAME]` and `fam person show PATH` return JSON. Use exact paths from the list or queue for writes.
 - `fam person ensure "Jane Doe"` creates one named note through Templater if missing. `--dry-run` previews. MCP equivalent: `ensure_person`.
 - `fam tend --scan --dry-run` previews bulk creation from unresolved `[[@Name]]` links. Review candidates before rerunning without `--dry-run`. Existing notes stay unchanged; no summaries or index maintenance follow tending. MCP `tend` requires `scan: true`.
 - `fam person log-contact PATH --date YYYY-MM-DD --description "Context"` records an evidenced interaction. Add `--complete-action` only when completing the pending action. MCP equivalent: `log_contact` with `on_date`.
-- `fam person update PATH` sets fam fields through flags such as `--circle`, `--cadence-days-override`, `--snooze-until`, `--next-action-at`, `--no-periodic-contact-reminders`, and `--contact-channels-ordered-preference signal email`. `--clear FIELD` removes an optional schema field; repeat for multiple removals. Circle cannot be cleared. MCP equivalent: `update_person` with field arguments and a `clear` list.
+- `fam person update PATH` sets fam fields through flags such as `--circle`, `--cadence-days-override`, `--snooze-until`, `--next-action-at`, `--no-periodic-contact-reminders`, `--contact-channels-ordered-preference signal email`, `--location TEXT`, `--relationship-tags friend family`, and `--interaction-preferences in_person call`. `--clear FIELD` removes an optional schema field; repeat for multiple removals. Circle cannot be cleared. MCP equivalent: `update_person` with field arguments and a `clear` list.
 
 From the repository, prefix commands with `uv run`. Elsewhere use
 `uv run --project "PLUGIN_ROOT" fam SUBCOMMAND ...`, replacing `PLUGIN_ROOT`
@@ -48,6 +48,14 @@ The optional fields are:
 - `contact_channels_ordered_preference`: Ordered list of channel names, such as `[signal, email]`.
 
 Circles configured without cadence stay out of the queue even with `next_action_at` set. See [contact queue](../../docs/DESIGN.md#contact-queue) for scoring.
+
+## Relationship metadata
+
+Use `location`, `relationship_tags`, and `interaction_preferences` for supported
+place, category, and contact-mode context. Unknown values stay unknown. An empty
+filtered queue may reflect missing metadata or excluded circles; use person list
+and relevant notes before concluding no matching people exist. Read and preserve
+existing values; do not infer friendship interest from imports or mentions.
 
 ## Log a contact
 

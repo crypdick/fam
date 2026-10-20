@@ -35,6 +35,9 @@ class Person:
     next_action_at: date | None = None
     contact_channels_ordered_preference: list[str] = field(default_factory=list)
     periodic_contact_reminders: bool = True
+    location: str | None = None
+    relationship_tags: list[str] = field(default_factory=list)
+    interaction_preferences: list[str] = field(default_factory=list)
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -56,6 +59,12 @@ def _coerce_date(value: Any, file: Path, field_name: str) -> date | None:
         except ValueError:
             pass
     raise PersonSchemaError(f"{file}: `{field_name}` must be ISO date, got {value!r}")
+
+
+def _string_list(value: Any, path: Path, field_name: str) -> list[str]:
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise PersonSchemaError(f"{path}: `{field_name}` must be a list of strings")
+    return value
 
 
 def _read_post(path: Path) -> frontmatter.Post:
@@ -97,11 +106,18 @@ def _load_post(path: Path, post: frontmatter.Post) -> Person:
             raise PersonSchemaError(f"{path}: `cadence_days_override` must be int > 0")
     snooze = _coerce_date(fm.pop("snooze_until", None), path, "snooze_until")
     next_action = _coerce_date(fm.pop("next_action_at", None), path, "next_action_at")
-    channels = fm.pop("contact_channels_ordered_preference", [])
-    if not isinstance(channels, list) or not all(isinstance(c, str) for c in channels):
-        raise PersonSchemaError(
-            f"{path}: `contact_channels_ordered_preference` must be a list of strings"
-        )
+    channels = _string_list(
+        fm.pop("contact_channels_ordered_preference", []),
+        path,
+        "contact_channels_ordered_preference",
+    )
+    location = fm.pop("location", None)
+    if location is not None and not isinstance(location, str):
+        raise PersonSchemaError(f"{path}: `location` must be a string")
+    tags = _string_list(fm.pop("relationship_tags", []), path, "relationship_tags")
+    preferences = _string_list(
+        fm.pop("interaction_preferences", []), path, "interaction_preferences"
+    )
     pcr_raw = fm.pop("periodic_contact_reminders", True)
     if not isinstance(pcr_raw, bool):
         raise PersonSchemaError(
@@ -124,6 +140,9 @@ def _load_post(path: Path, post: frontmatter.Post) -> Person:
         next_action_at=next_action,
         contact_channels_ordered_preference=channels,
         periodic_contact_reminders=pcr_raw,
+        location=location,
+        relationship_tags=tags,
+        interaction_preferences=preferences,
         extra=fm,
     )
 
@@ -141,6 +160,12 @@ def write(person: Person) -> None:
         fm["contact_channels_ordered_preference"] = person.contact_channels_ordered_preference
     if not person.periodic_contact_reminders:
         fm["periodic_contact_reminders"] = False
+    if person.location is not None:
+        fm["location"] = person.location
+    if person.relationship_tags:
+        fm["relationship_tags"] = person.relationship_tags
+    if person.interaction_preferences:
+        fm["interaction_preferences"] = person.interaction_preferences
     fm.update(person.extra)
     post = frontmatter.Post(person.body, **fm)
     person.path.write_text(frontmatter.dumps(post), encoding="utf-8")
