@@ -25,13 +25,20 @@ prevents startup. Clients send `Authorization: Bearer <token>` to `/mcp`.
 
 ## Tools
 
-- `today`: read-only ranked queue with optional `on_date`,
+- `today`: read-only `{contacts: [...], events: [...]}` with optional `on_date`,
   `include_below_threshold`, `circle`, `include_snoozed`, nonnegative `limit`,
   `location` (case-insensitive substring), `relationship_tag`, and
   `interaction_preference` (case-insensitive whole-list membership). Filters
-  combine before limit and retain all queue exclusions.
+  combine before limits. Contact exclusions apply to `contacts`; explicit event
+  reminders also work in passive/reference circles and with cadence muted.
+  Limits apply to each queue independently. The object replaces the former
+  contact-only array; consumers must read `contacts` for the previous rows.
   Default date uses the server's local timezone. Missing circles fail validation;
   repair explicitly through `update_person`.
+- `events`: read-only event reminder array with optional `on_date`, nonnegative
+  `days` (preview reminder windows; default 0), `include_snoozed`, and nonnegative
+  `limit`. See [important events](DESIGN.md#important-events) for dates,
+  recurrence, window boundaries, and JSON row fields.
 - `validate`: `{ok, errors}` for configuration and all person notes; no writes.
 - `ensure_person`: required `person_name` selects one note to create if missing.
   Optional `dry_run` previews creation without scanning mentions.
@@ -53,7 +60,10 @@ prevents startup. Clients send `Authorization: Bearer <token>` to `/mcp`.
 - `update_person`: required `path` plus fields to set: `circle`,
   `cadence_days_override`, `snooze_until`, `next_action_at`,
   `periodic_contact_reminders`, `contact_channels_ordered_preference`,
-  `location`, `relationship_tags`, or `interaction_preferences`.
+  `location`, `relationship_tags`, `interaction_preferences`, or `important_events`.
+  Event updates replace the complete list; read existing entries first. Each
+  event has `name`, `date` (`MM-DD` annual or `YYYY-MM-DD` one-off), and optional
+  `remind_days_before` (0–366, default 7).
   Omitted/null arguments preserve fields. `clear` lists optional schema fields
   to remove; setting and clearing the same field fails. Cannot clear circle.
   Returns updated person summary.

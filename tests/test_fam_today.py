@@ -62,7 +62,8 @@ def test_today_json_output_has_required_keys(mock_root, vault_root: Path, capsys
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
     assert payload  # non-empty
-    row = payload[0]
+    assert payload["events"] == []
+    row = payload["contacts"][0]
     assert {
         "name",
         "circle",
@@ -155,7 +156,9 @@ def test_today_include_snoozed_keeps_real_scores_and_valid_json(mock_root, vault
     def reject_constant(value):
         pytest.fail(f"nonstandard JSON constant: {value}")
 
-    data = json.loads(fam_today._format_json(rows), parse_constant=reject_constant)
+    data = json.loads(
+        json.dumps(fam_today.rows_as_dicts(rows), allow_nan=False), parse_constant=reject_constant
+    )
     assert next(row for row in data if row["name"] == "Eve")["snoozed"]
     assert person.load(vault_root / "People" / "@Eve.md").snooze_until == date(2030, 1, 1)
 
@@ -189,17 +192,13 @@ def test_today_falls_back_to_highest_ranked_eligible_people(
         text = path.read_text()
         start = text.index("## Logged contacts")
         end = text.index("## Other references")
-        path.write_text(
-            text[:start]
-            + "## Logged contacts\n- 2026-05-14 — call\n\n"
-            + text[end:]
-        )
+        path.write_text(text[:start] + "## Logged contacts\n- 2026-05-14 — call\n\n" + text[end:])
     before = {p: p.read_bytes() for p in vault_root.rglob("*.md")}
     arguments = ["today", "--on-date", "2026-05-15", "--json"]
     if limit is not None:
         arguments.extend(["--limit", str(limit)])
     assert main(arguments) == 0
-    rows = json.loads(capsys.readouterr().out)
+    rows = json.loads(capsys.readouterr().out)["contacts"]
     assert [row["name"] for row in rows] == expected
     if rows:
         assert rows[0]["score"] == pytest.approx(-6 / 7)
@@ -221,10 +220,8 @@ def test_today_fallback_defaults_to_ten(
         (vault_root / f"People/@Suggestion {number}.md").write_text(
             "---\ncircle: close\n---\n\n## Logged contacts\n- 2026-05-14 — call\n"
         )
-    assert main(
-        ["today", "--on-date", "2026-05-15", "--circle", "close", "--json", *options]
-    ) == 0
-    rows = json.loads(capsys.readouterr().out)
+    assert main(["today", "--on-date", "2026-05-15", "--circle", "close", "--json", *options]) == 0
+    rows = json.loads(capsys.readouterr().out)["contacts"]
     assert len(rows) == expected_count
     assert rows[0]["name"] == "Alice"
     assert all(row["score"] < 0 for row in rows)

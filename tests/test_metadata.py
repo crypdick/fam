@@ -55,7 +55,7 @@ def metadata_vault(vault_root: Path, monkeypatch) -> Path:
 def test_cli_metadata_filters_keep_queue_exclusions(metadata_vault, capsys, arguments, expected):
     before = {p: p.read_bytes() for p in metadata_vault.rglob("*.md")}
     assert main(["today", "--on-date", "2026-05-15", "--all", "--json", *arguments]) == 0
-    rows = json.loads(capsys.readouterr().out)
+    rows = json.loads(capsys.readouterr().out)["contacts"]
     assert [row["name"] for row in rows] == expected
     assert {p: p.read_bytes() for p in metadata_vault.rglob("*.md")} == before
     for row in rows:
@@ -66,7 +66,7 @@ def test_cli_metadata_filters_keep_queue_exclusions(metadata_vault, capsys, argu
 
 def test_metadata_filters_allow_fallback_within_eligible_matches(metadata_vault, capsys):
     assert main(["today", "--on-date", "2026-05-15", "--json", "--tag", "friend"]) == 0
-    rows = json.loads(capsys.readouterr().out)
+    rows = json.loads(capsys.readouterr().out)["contacts"]
     assert [row["name"] for row in rows] == ["Alice"]
     assert rows[0]["score"] < 0
 
@@ -186,8 +186,8 @@ def test_mcp_metadata_filter_update_read_and_clear(metadata_vault):
                     "interaction_preference": "in_person",
                 },
             )
-            assert [row["name"] for row in queue.data] == ["Alice"]
-            assert queue.data[0]["location"] == "Straße, San Francisco"
+            assert [row["name"] for row in queue.data["contacts"]] == ["Alice"]
+            assert queue.data["contacts"][0]["location"] == "Straße, San Francisco"
             result = await client.call_tool(
                 "update_person",
                 {

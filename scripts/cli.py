@@ -10,7 +10,7 @@ from dataclasses import asdict
 from datetime import date
 from typing import Any
 
-from scripts import fam_tend, fam_today
+from scripts import fam_events, fam_tend, fam_today
 from scripts.lib import config, people, person, validate, vault
 
 
@@ -107,6 +107,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     today = commands.add_parser("today", parents=[list_options], help="alias for list --today")
     today.set_defaults(today=True)
+    events = commands.add_parser("events", help="important event reminders (read-only)")
+    events.add_argument("--on-date", type=iso_date)
+    events.add_argument(
+        "--days", type=nonnegative, default=0, help="look ahead for reminder windows"
+    )
+    events.add_argument("--include-snoozed", action="store_true")
+    events.add_argument("--limit", type=nonnegative)
+    events.add_argument("--json", action="store_true")
     check = commands.add_parser("validate", help="validate configuration and person notes")
     check.add_argument("--json", action="store_true")
     tend = commands.add_parser("tend", help="explicit bulk creation from unresolved @ links")
@@ -134,6 +142,7 @@ def main(argv: list[str] | None = None) -> int:
     update.add_argument("--location")
     update.add_argument("--relationship-tags", nargs="+")
     update.add_argument("--interaction-preferences", nargs="+")
+    update.add_argument("--important-events", type=json.loads, help="replace event list with JSON")
     update.add_argument("--clear", choices=people.OPTIONAL_FIELDS, action="append", default=[])
     mcp = commands.add_parser("mcp", help="serve optional MCP interface")
     mcp.add_argument("--transport", choices=("stdio", "http"), default="stdio")
@@ -176,6 +185,17 @@ def main(argv: list[str] | None = None) -> int:
                 print_json(rows)
             else:
                 print(format_people(rows))
+        elif args.command == "events":
+            rows = fam_events.upcoming(
+                today=args.on_date or date.today(),
+                days=args.days,
+                include_snoozed=args.include_snoozed,
+                limit=args.limit,
+            )
+            if args.json:
+                print_json(rows)
+            else:
+                print(fam_events.format_events(rows))
         elif args.command == "validate":
             report = validate.preflight(vault.get_vault_root())
             if args.json:

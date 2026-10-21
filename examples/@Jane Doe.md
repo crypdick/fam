@@ -1,6 +1,10 @@
 ---
 circle: close
 cadence_days_override: 21
+important_events:
+  - name: Birthday
+    date: "05-20"
+    remind_days_before: 7
 location: San Francisco
 relationship_tags: [friend]
 interaction_preferences: [in_person, text]

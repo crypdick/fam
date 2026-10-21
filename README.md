@@ -10,6 +10,7 @@ Use one CLI with subcommands (from the repository, prefix these with `uv run`):
 
 ```shell
 fam today --json
+fam events --days 30 --json
 fam list
 fam list --sort score --limit 10
 fam list --location "San Francisco" --tag friend
@@ -20,6 +21,11 @@ fam person log-contact "People/@Jane Doe.md" --date 2026-05-01 --description "Lu
 fam person update "People/@Jane Doe.md" --snooze-until 2026-06-01
 fam tend --dry-run
 ```
+
+Important event reminders appear in `fam today` and a separate `fam events` queue.
+`today --json` returns `{contacts: [...], events: [...]}`. See
+[important events](docs/DESIGN.md#important-events) for birthdays, anniversaries,
+and one-off dates.
 
 See [person operations](docs/DESIGN.md#person-operations) for field removal and
 contact logging. Remote agents can use the same operations through the

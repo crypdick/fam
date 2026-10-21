@@ -8,6 +8,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from scripts import fam_events
 from scripts.lib import config as config_mod
 from scripts.lib import interactions, people, person, score, validate, vault
 
@@ -98,7 +99,7 @@ def compute_rows(
     return rows
 
 
-def _format_table(rows: list[Row]) -> str:
+def _format_table(rows: list[dict[str, Any]]) -> str:
     if not rows:
         return (
             "No eligible contacts match this queue (or --limit is 0). "
@@ -111,11 +112,13 @@ def _format_table(rows: list[Row]) -> str:
     )
     out = [header]
     for r in rows:
-        score_str = "inf" if r.score == float("inf") else f"{r.score:6.2f}"
-        last_str = r.last_contacted.isoformat() if r.last_contacted else "-"
-        days = str(r.days) if r.days is not None else "-"
-        do = str(r.days_overdue) if r.days_overdue is not None else "-"
-        out.append(f"{score_str:>6}  {r.circle:<8}  {last_str:<14}  {days:>4}  {do:>12}  {r.path}")
+        score_str = "inf" if r["score"] == "inf" else f"{r['score']:6.2f}"
+        last_str = r["last_contacted"] or "-"
+        days = str(r["days"]) if r["days"] is not None else "-"
+        do = str(r["days_overdue"]) if r["days_overdue"] is not None else "-"
+        out.append(
+            f"{score_str:>6}  {r['circle']:<8}  {last_str:<14}  {days:>4}  {do:>12}  {r['path']}"
+        )
     return "\n".join(out)
 
 
@@ -139,8 +142,38 @@ def rows_as_dicts(rows: list[Row]) -> list[dict[str, Any]]:
     ]
 
 
-def _format_json(rows: list[Row]) -> str:
-    return _json.dumps(rows_as_dicts(rows), indent=2, allow_nan=False)
+def queues(
+    *,
+    today: date,
+    include_below_threshold: bool = False,
+    circle: str | None = None,
+    include_snoozed: bool = False,
+    limit: int | None = None,
+    location: str | None = None,
+    relationship_tag: str | None = None,
+    interaction_preference: str | None = None,
+) -> dict[str, Any]:
+    """Combine independent contact and event queues for CLI and MCP."""
+    contacts = compute_rows(
+        today=today,
+        include_below_threshold=include_below_threshold,
+        circle=circle,
+        include_snoozed=include_snoozed,
+        limit=limit,
+        location=location,
+        relationship_tag=relationship_tag,
+        interaction_preference=interaction_preference,
+    )
+    events = fam_events.upcoming(
+        today=today,
+        circle=circle,
+        include_snoozed=include_snoozed,
+        limit=limit,
+        location=location,
+        relationship_tag=relationship_tag,
+        interaction_preference=interaction_preference,
+    )
+    return {"contacts": rows_as_dicts(contacts), "events": events}
 
 
 def run(
@@ -155,7 +188,7 @@ def run(
     relationship_tag: str | None = None,
     interaction_preference: str | None = None,
 ) -> None:
-    rows = compute_rows(
+    result = queues(
         today=today,
         include_below_threshold=include_below_threshold,
         circle=circle,
@@ -165,4 +198,8 @@ def run(
         relationship_tag=relationship_tag,
         interaction_preference=interaction_preference,
     )
-    print(_format_json(rows) if json_out else _format_table(rows))
+    if json_out:
+        print(_json.dumps(result, indent=2, allow_nan=False))
+    else:
+        print(_format_table(result["contacts"]))
+        print("\nImportant events\n" + fam_events.format_events(result["events"]))
