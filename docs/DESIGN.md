@@ -89,6 +89,7 @@ content:
 | `location` | Optional current location string, such as `San Francisco` |
 | `relationship_tags` | List of relationship categories, such as `[friend, colleague]` |
 | `interaction_preferences` | List of intended modes, such as `[in_person, call]` |
+| `important_events` | Named annual or one-off dates with advance notice; see [important events](#important-events) |
 
 The example template starts new people in `passive`. Queue reads never repair
 notes. For a missing circle, explicitly run
@@ -144,14 +145,18 @@ Use `--on-date YYYY-MM-DD` with `--sort score` to select the scoring date;
 the default is the local date. Filters and sorting apply before `--limit`.
 Score sorting validates the vault and configuration before calculating scores.
 
-`fam list --today` selects the ranked contact queue described below.
+`fam list --today` shows the ranked contact queue and important event reminders.
 `fam today` is shorthand for the same command, with the same filters and output.
-Queue options `--all` and `--include-snoozed` require this mode. The queue always
-sorts by score; `--sort name` is not supported with `--today`.
+Text output shows separate contact and event sections. JSON and MCP `today`
+return `{contacts: [...], events: [...]}`. This replaces the former contact-only
+array; existing consumers must read `contacts` for the previous rows.
+`fam list` without `--today` still returns a person array.
+Queue options `--all` and `--include-snoozed` require this mode. The contact queue
+always sorts by score; `--sort name` is not supported with `--today`.
 
 ## Contact queue
 
-Circles without a cadence stay out of the queue. `fam today` also excludes
+Circles without a cadence stay out of the contact queue. `fam today` also excludes
 snoozed people by default. People with `periodic_contact_reminders: false`
 need a manual action date to appear.
 
@@ -194,11 +199,72 @@ never matches a requested filter. Filtered queues still exclude inactive circles
 muted reminders without action dates, and (unless requested) snoozes, even with
 `--all`. An empty queue does not prove that no matching person exists. Use
 `fam list` and inspect notes when reviewing people outside the queue.
-JSON queue rows and person summaries include the three metadata fields.
+JSON contact rows and person summaries include the three metadata fields.
+Person summaries also include the normalized `important_events` list.
 
 When no eligible people remain, table output explains the empty result and
-suggests checking filters and reminder settings. JSON output remains `[]`.
-`--limit 0` also returns no rows.
+suggests checking filters and reminder settings. The `contacts` array remains
+`[]` when empty.
+`--limit 0` returns no rows in either queue.
+
+## Important events
+
+Store birthdays, anniversaries, and one-off dates in a person's frontmatter:
+
+```yaml
+important_events:
+  - name: Birthday
+    date: "05-20"
+    remind_days_before: 7
+  - name: Interview
+    date: "2026-11-03"
+    remind_days_before: 1
+```
+
+Each event requires a nonempty single-line `name` and a valid date. `MM-DD`
+repeats annually without needing a birth year; `YYYY-MM-DD` happens once.
+`remind_days_before` defaults to 7 and accepts integers from 0 through 366.
+Unknown event fields and duplicate identical events fail validation.
+Quote annual dates in YAML. Unquoted YAML dates for one-off events also work.
+February 29 is observed on February 28 in non-leap years.
+
+```shell
+fam events
+fam events --on-date 2026-05-15 --days 30 --json
+fam person update "People/@Jane Doe.md" --important-events \
+    '[{"name":"Birthday","date":"05-20","remind_days_before":7}]'
+fam person update "People/@Jane Doe.md" --clear important_events
+```
+
+`--important-events` replaces the complete list. Read existing events before
+updating so unrelated dates survive; use `[]` or `--clear important_events`
+to remove all events. Shared updates validate before writing and preserve
+unrelated frontmatter, contact history, and free-form context.
+
+`fam events` returns each event's next occurrence when its reminder window
+has started and the event has not passed. The window includes both the
+advance-notice date and event day. `--days N` previews windows starting by
+`on_date + N` (default 0); it returns only the next occurrence of each annual
+event, even for previews longer than a year. Past one-off events remain stored
+but leave the queue; annual events roll forward after event day.
+
+Rows sort by occurrence date, then person name, path, and event name.
+JSON returns an array containing `name`, `circle`, `path`, `event`, resolved
+`date`, `reminder_at`, `days_until`, and `snoozed`. Empty JSON is `[]`.
+`--on-date` defaults to the local date. `--limit N` caps sorted rows.
+Snoozed people are hidden unless `--include-snoozed` is set.
+
+Explicit event reminders work in every circle, including `reference` and
+`passive`, and when `periodic_contact_reminders` is false. Adding an event is
+an explicit reminder choice; it does not change relationship intent or cadence.
+Contact logging never completes, shifts, or removes an event reminder and
+events never count as contact evidence. Remove a one-off event to cancel it.
+
+`fam today` includes the same current event queue separately from contact
+scores. Its metadata and circle filters apply to both queues; `--limit N`
+caps each queue independently. `--all` affects contact scores only. Events
+are shown even when no contacts are eligible. No notification delivery or
+calendar synchronization is built in; schedulers and agents consume these reads.
 
 ## Person operations
 
@@ -256,10 +322,12 @@ Supported flags are `--circle`, `--cadence-days-override`, `--snooze-until`,
 `--next-action-at`, `--periodic-contact-reminders`,
 `--no-periodic-contact-reminders`,
 `--contact-channels-ordered-preference signal email`, `--location TEXT`,
-`--relationship-tags friend family`, and `--interaction-preferences in_person call`.
+`--relationship-tags friend family`, `--interaction-preferences in_person call`,
+and `--important-events JSON`.
 Location must be a string; tag and preference fields must be lists of strings.
 Populate them only from supported context or explicit user choices.
-Dates use `YYYY-MM-DD`; cadence must be a positive integer.
+Reminder dates use `YYYY-MM-DD`; annual event dates use `MM-DD`.
+Cadence must be a positive integer.
 
 Omitted fields stay unchanged. `--clear FIELD` is repeatable and removes an
 optional field using its schema name (for example `cadence_days_override`).
@@ -287,5 +355,5 @@ produces a nonzero exit status.
 The Obsidian wrapper in `scripts/lib/vault.py` calls the CLI without availability checks and reports failures. Postflight failures leave written files in place; there is no rollback or concurrent-edit protection. Use vault backups for recovery.
 
 fam doesn't integrate messaging channels, watch address books, generate
-Obsidian Bases, or manage birthdays. For checks and automation setup, see
+Obsidian Bases, or deliver notifications. For checks and automation setup, see
 [development](development.md).

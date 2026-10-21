@@ -20,6 +20,7 @@ EDITABLE_FIELDS = (
     "location",
     "relationship_tags",
     "interaction_preferences",
+    "important_events",
 )
 OPTIONAL_FIELDS = EDITABLE_FIELDS[1:]
 
@@ -43,6 +44,7 @@ def _summary(loaded: person.Person, root: Path) -> dict[str, Any]:
         "location": loaded.location,
         "relationship_tags": loaded.relationship_tags,
         "interaction_preferences": loaded.interaction_preferences,
+        "important_events": loaded.important_events,
     }
 
 

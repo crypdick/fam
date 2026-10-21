@@ -31,6 +31,7 @@ def test_list_show_and_queue(vault_root: Path, capsys):
             "location": None,
             "relationship_tags": [],
             "interaction_preferences": [],
+            "important_events": [],
         }
     ]
     assert run("person", "show", "People/@Alice.md") == 0
@@ -40,7 +41,7 @@ def test_list_show_and_queue(vault_root: Path, capsys):
     )
     before = {p: p.read_bytes() for p in vault_root.rglob("*.md")}
     assert run("today", "--on-date", "2026-05-15", "--limit", "1", "--json") == 0
-    assert json.loads(capsys.readouterr().out)[0]["name"] == "Dan"
+    assert json.loads(capsys.readouterr().out)["contacts"][0]["name"] == "Dan"
     assert {p: p.read_bytes() for p in vault_root.rglob("*.md")} == before
 
 

@@ -38,6 +38,7 @@ class Person:
     location: str | None = None
     relationship_tags: list[str] = field(default_factory=list)
     interaction_preferences: list[str] = field(default_factory=list)
+    important_events: list[dict[str, Any]] = field(default_factory=list)
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -65,6 +66,46 @@ def _string_list(value: Any, path: Path, field_name: str) -> list[str]:
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise PersonSchemaError(f"{path}: `{field_name}` must be a list of strings")
     return value
+
+
+def _important_events(value: Any, path: Path) -> list[dict[str, Any]]:
+    error = (
+        f"{path}: `important_events` must be a list of events with name, date, "
+        "and optional remind_days_before"
+    )
+    if not isinstance(value, list):
+        raise PersonSchemaError(error)
+    result = []
+    for event in value:
+        if not isinstance(event, dict) or not {"name", "date"} <= event.keys():
+            raise PersonSchemaError(error)
+        if event.keys() - {"name", "date", "remind_days_before"}:
+            raise PersonSchemaError(error + "; unknown event field")
+        name = event["name"]
+        if not isinstance(name, str) or not name.strip() or any(c in name for c in "\r\n\x00"):
+            raise PersonSchemaError(error + "; name must be a nonempty single line")
+        raw_date = event["date"]
+        value_date = raw_date.isoformat() if type(raw_date) is date else raw_date
+        try:
+            if not isinstance(value_date, str):
+                raise ValueError
+            parsed = date.fromisoformat(
+                "2000-" + value_date if len(value_date) == 5 else value_date
+            )
+            if value_date not in {parsed.isoformat(), parsed.strftime("%m-%d")}:
+                raise ValueError
+        except ValueError as exc:
+            raise PersonSchemaError(
+                error + "; date must be YYYY-MM-DD (one-off) or MM-DD (annual)"
+            ) from exc
+        lead = event.get("remind_days_before", 7)
+        if type(lead) is not int or not 0 <= lead <= 366:
+            raise PersonSchemaError(error + "; remind_days_before must be an integer from 0 to 366")
+        normalized = {"name": name.strip(), "date": value_date, "remind_days_before": lead}
+        if normalized in result:
+            raise PersonSchemaError(error + "; duplicate event")
+        result.append(normalized)
+    return result
 
 
 def _read_post(path: Path) -> frontmatter.Post:
@@ -118,6 +159,7 @@ def _load_post(path: Path, post: frontmatter.Post) -> Person:
     preferences = _string_list(
         fm.pop("interaction_preferences", []), path, "interaction_preferences"
     )
+    events = _important_events(fm.pop("important_events", []), path)
     pcr_raw = fm.pop("periodic_contact_reminders", True)
     if not isinstance(pcr_raw, bool):
         raise PersonSchemaError(
@@ -143,6 +185,7 @@ def _load_post(path: Path, post: frontmatter.Post) -> Person:
         location=location,
         relationship_tags=tags,
         interaction_preferences=preferences,
+        important_events=events,
         extra=fm,
     )
 
@@ -166,6 +209,8 @@ def write(person: Person) -> None:
         fm["relationship_tags"] = person.relationship_tags
     if person.interaction_preferences:
         fm["interaction_preferences"] = person.interaction_preferences
+    if person.important_events:
+        fm["important_events"] = person.important_events
     fm.update(person.extra)
     post = frontmatter.Post(person.body, **fm)
     person.path.write_text(frontmatter.dumps(post), encoding="utf-8")

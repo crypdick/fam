@@ -20,7 +20,8 @@ Person notes are the source of truth for contact history. Link to them from any 
 Use the CLI or available [FAM MCP tools](../../docs/MCP.md#tools). MCP tools may have a `fam_` prefix. Use these operations for contact logs and fam fields; use file tools for free-form relationship context.
 
 - `fam list` shows all people as a table, sorted by name, including inactive circles, snoozes, and muted reminders. Use `--circle NAME`, `--location TEXT`, `--tag TAG`, `--interaction VALUE`, `--limit N`, or `--json`. Location uses a case-insensitive substring; tag and mode use whole-list membership. Filters combine before the limit. MCP equivalent: `list_people`.
-- `fam today` is shorthand for `fam list --today`: the ranked contact queue without writes. It accepts the same filters plus `--all`, `--include-snoozed`, and `--on-date YYYY-MM-DD`. Filters retain all queue exclusions, even with `--all`. Missing circles fail validation; explicitly set the intended circle with `fam person update PATH --circle NAME`.
+- `fam today` is shorthand for `fam list --today`: the ranked contact queue without writes. It accepts the same filters plus `--all`, `--include-snoozed`, and `--on-date YYYY-MM-DD`. JSON returns `{contacts: [...], events: [...]}`; text shows separate sections. Contact filters retain cadence exclusions even with `--all`; event reminders work in every circle. Metadata filters apply to both queues, and `--limit` caps each independently. Missing circles fail validation; explicitly set the intended circle with `fam person update PATH --circle NAME`.
+- `fam events` shows important event reminders separately. Use `--on-date YYYY-MM-DD`, `--days N` to preview reminder windows, `--limit N`, `--include-snoozed`, and `--json`. MCP equivalent: `events`. See [important events](../../docs/DESIGN.md#important-events) for schema and recurrence.
 - `fam validate` checks configuration and person notes.
 - `fam person show PATH` returns JSON with the original note. Use exact paths from the list or queue for writes.
 - `fam person ensure "Jane Doe"` creates one named note through Templater if missing. `--dry-run` previews. MCP equivalent: `ensure_person`.
@@ -32,7 +33,7 @@ When nobody meets their alert threshold, `fam today` suggests up to 10
 highest-ranked eligible people; `--limit N` overrides that count.
 Filters and exclusions still apply. Negative
 scores mean the suggestion is early. If nobody is eligible, table output
-explains the empty result; JSON remains `[]`.
+explains the empty contact result; JSON `contacts` remains `[]`. Events can still appear.
 
 For the full directory ranked by score, use `fam list --sort score`, optionally
 with `--on-date YYYY-MM-DD`. Scores appear in the table or JSON; filters and
@@ -61,6 +62,20 @@ The optional fields are:
 - `contact_channels_ordered_preference`: Ordered list of channel names, such as `[signal, email]`.
 
 Circles configured without cadence stay out of the queue even with `next_action_at` set. See [contact queue](../../docs/DESIGN.md#contact-queue) for scoring.
+
+## Important events
+
+Use `important_events` for explicit birthdays, anniversaries, and one-off dates.
+Each entry has `name`, `date` (`MM-DD` annual or `YYYY-MM-DD` one-off), and
+optional `remind_days_before` (0–366; default 7). February 29 uses February 28
+in non-leap years. Populate dates only from supported context or user reports.
+
+Read existing events before `fam person update PATH --important-events JSON`
+or MCP `update_person` with `important_events`: these replace the full list.
+Use `--clear important_events` to remove all. Event reminders respect snoozes,
+work without cadence, and remain visible through event day regardless of contact
+logging. They never establish contact history. Include relevant event context
+in reviews; a reminder does not authorize sending a message.
 
 ## Relationship metadata
 

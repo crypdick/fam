@@ -19,6 +19,7 @@ def test_mcp_queue_validation_and_person_reads(vault_root: Path, monkeypatch):
             tools = {tool.name: tool for tool in await client.list_tools()}
             assert set(tools) == {
                 "today",
+                "events",
                 "validate",
                 "tend",
                 "list_people",
@@ -36,7 +37,8 @@ def test_mcp_queue_validation_and_person_reads(vault_root: Path, monkeypatch):
             report = await client.call_tool("validate", {})
             assert report.data == {"ok": True, "errors": []}
             queue = await client.call_tool("today", {"on_date": "2026-05-15", "limit": 1})
-            assert queue.data == [
+            assert queue.data["events"] == []
+            assert queue.data["contacts"] == [
                 {
                     "name": "Dan",
                     "circle": "orbit",
@@ -61,6 +63,7 @@ def test_mcp_queue_validation_and_person_reads(vault_root: Path, monkeypatch):
                     "location": None,
                     "relationship_tags": [],
                     "interaction_preferences": [],
+                    "important_events": [],
                 }
             ]
             note = await client.call_tool("read_person", {"path": "People/@Alice.md"})
@@ -82,9 +85,9 @@ def test_mcp_queue_falls_back_below_threshold(vault_root: Path, monkeypatch):
     async def check():
         async with Client(create_server()) as client:
             queue = await client.call_tool("today", {"on_date": "2026-05-15", "circle": "close"})
-            assert [row["name"] for row in queue.data] == ["Alice"]
-            assert queue.data[0]["score"] == pytest.approx(-7 / 30)
-            assert queue.data[0]["days_overdue"] == -7
+            assert [row["name"] for row in queue.data["contacts"]] == ["Alice"]
+            assert queue.data["contacts"][0]["score"] == pytest.approx(-7 / 30)
+            assert queue.data["contacts"][0]["days_overdue"] == -7
 
     asyncio.run(check())
 

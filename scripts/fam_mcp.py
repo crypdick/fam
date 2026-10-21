@@ -13,7 +13,7 @@ from pydantic import Field
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse
 
-from scripts import fam_tend, fam_today
+from scripts import fam_events, fam_tend, fam_today
 from scripts.lib import people, validate, vault
 
 Circle = Literal["reference", "passive", "inner", "close", "orbit", "distant"]
@@ -26,6 +26,7 @@ OptionalField = Literal[
     "location",
     "relationship_tags",
     "interaction_preferences",
+    "important_events",
 ]
 Limit = Annotated[int, Field(ge=0)]
 Cadence = Annotated[int, Field(gt=0)]
@@ -64,27 +65,45 @@ def create_server(*, token: str | None = None) -> FastMCP:
         location: str | None = None,
         relationship_tag: str | None = None,
         interaction_preference: str | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> dict[str, Any]:
         """Rank who to contact without writes. on_date defaults to server-local date.
 
-        Inactive circles and muted reminders without action dates stay out even with
-        include_below_threshold. include_snoozed retains real scores and marks snoozes.
-        Location matches a casefolded substring; tag and mode match whole list entries.
-        Metadata filters combine before limit and never bypass queue exclusions.
-        If nobody meets their alert threshold, returns up to 10 highest-ranked eligible
+        Returns {contacts: [...], events: [...]}. Contact cadence exclusions apply only
+        to contacts; explicit events also work in inactive circles and with cadence muted.
+        Events appear from their advance-notice date through event day, sorted by date.
+        include_snoozed includes both queues' snoozed entries. Metadata filters apply
+        to both queues; limit caps each independently. include_below_threshold affects
+        contacts only. If no contact meets its threshold, suggests up to 10 eligible
         people by default; limit overrides that count.
         """
-        return fam_today.rows_as_dicts(
-            fam_today.compute_rows(
-                today=on_date or date.today(),
-                include_below_threshold=include_below_threshold,
-                circle=circle,
-                include_snoozed=include_snoozed,
-                limit=limit,
-                location=location,
-                relationship_tag=relationship_tag,
-                interaction_preference=interaction_preference,
-            )
+        return fam_today.queues(
+            today=on_date or date.today(),
+            include_below_threshold=include_below_threshold,
+            circle=circle,
+            include_snoozed=include_snoozed,
+            limit=limit,
+            location=location,
+            relationship_tag=relationship_tag,
+            interaction_preference=interaction_preference,
+        )
+
+    @server.tool(annotations=read_only)
+    def events(
+        on_date: date | None = None,
+        days: Limit = 0,
+        include_snoozed: bool = False,
+        limit: Limit | None = None,
+    ) -> list[dict[str, Any]]:
+        """Important events in reminder windows, including passive and muted contacts.
+
+        days looks ahead for windows starting by on_date + days. Defaults to today.
+        Snoozes apply unless include_snoozed; rows sort by occurrence date.
+        """
+        return fam_events.upcoming(
+            today=on_date or date.today(),
+            days=days,
+            include_snoozed=include_snoozed,
+            limit=limit,
         )
 
     @server.tool(name="validate", annotations=read_only)
@@ -165,12 +184,16 @@ def create_server(*, token: str | None = None) -> FastMCP:
         location: str | None = None,
         relationship_tags: list[str] | None = None,
         interaction_preferences: list[str] | None = None,
+        important_events: list[dict[str, Any]] | None = None,
         clear: list[OptionalField] | None = None,
     ) -> dict[str, Any]:
         """Set fam fields, or remove optional fields named in clear. Other content survives.
 
         Omitted/null parameters leave fields unchanged. Set and clear cannot overlap.
         Circle changes preserve cadence override. Explicit circle can repair a missing one.
+        important_events replaces the full list: each event has name, date (MM-DD annual,
+        YYYY-MM-DD one-off), and optional remind_days_before (0..366, default 7).
+        Read existing events before replacing; clear important_events removes the list.
         """
         changes = {
             "circle": circle,
@@ -182,6 +205,7 @@ def create_server(*, token: str | None = None) -> FastMCP:
             "location": location,
             "relationship_tags": relationship_tags,
             "interaction_preferences": interaction_preferences,
+            "important_events": important_events,
         }
         return people.update_person(
             path, {k: v for k, v in changes.items() if v is not None}, clear
