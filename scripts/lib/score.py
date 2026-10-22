@@ -17,16 +17,17 @@ def _cadence(person: Person, config: Config) -> int | None:
 
 def score(person: Person, last: date | None, today: date, config: Config) -> float:
     circle_cfg = config.circles[person.circle]
-    if circle_cfg.cadence_days is None:
-        return float("-inf")
     if person.snooze_until and today < person.snooze_until:
+        return float("-inf")
+    if person.next_action_at is not None:
+        cadence = _cadence(person, config) or 1
+        return (today - person.next_action_at).days / cadence
+    if circle_cfg.cadence_days is None:
         return float("-inf")
     cadence = _cadence(person, config) or 0
     if cadence <= 0:
         return float("-inf")
-    if person.next_action_at is not None:
-        anchor = person.next_action_at
-    elif last is not None:
+    if last is not None:
         anchor = last + timedelta(days=cadence)
     else:
         return float("inf")
@@ -35,14 +36,14 @@ def score(person: Person, last: date | None, today: date, config: Config) -> flo
 
 
 def days_overdue(person: Person, last: date | None, today: date, config: Config) -> int | None:
-    """Days past the anchor (negative when not yet due). None for passive/snoozed/never."""
+    """Days past the anchor; None when no cadence or an active snooze applies."""
     circle_cfg = config.circles[person.circle]
-    if circle_cfg.cadence_days is None:
-        return None
     if person.snooze_until and today < person.snooze_until:
         return None
     if person.next_action_at is not None:
         anchor = person.next_action_at
+    elif circle_cfg.cadence_days is None:
+        return None
     elif last is not None:
         cadence = _cadence(person, config)
         if cadence is None or cadence <= 0:
@@ -56,6 +57,8 @@ def days_overdue(person: Person, last: date | None, today: date, config: Config)
 def in_queue(person: Person, score: float, config: Config) -> bool:
     if score == float("-inf"):
         return False
+    if person.next_action_at is not None:
+        return True
     if math.isinf(score):
         return True
     threshold = config.circles[person.circle].alert_threshold

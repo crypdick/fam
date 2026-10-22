@@ -156,14 +156,17 @@ always sorts by score; `--sort name` is not supported with `--today`.
 
 ## Contact queue
 
-Circles without a cadence stay out of the contact queue. `fam today` also excludes
-snoozed people by default. People with `periodic_contact_reminders: false`
-need a manual action date to appear.
+Circles without a cadence stay out of the periodic contact queue, unless a
+person has an explicit `next_action_at`; that one-shot action appears even in
+`passive` or `reference`. `fam today` also excludes snoozed people by default.
+People with `periodic_contact_reminders: false` need a manual action date to
+appear.
 
 For an eligible person, the due date is `next_action_at` if set. Otherwise it
 is the most recent logged contact plus the effective cadence. A person with
 neither a contact nor a manual action date has an infinite score and comes
-first. For everyone else:
+first. An explicit action in a no-cadence circle uses one day as its score
+unit, so each overdue day adds one score point. For everyone else:
 
 ```text
 days_overdue = (today - due_date).days

@@ -123,6 +123,20 @@ def test_today_includes_periodic_muted_with_next_action_at(mock_root, vault_root
 
 
 @patch("scripts.lib.vault.get_vault_root")
+def test_today_includes_passive_with_next_action_at(mock_root, vault_root: Path) -> None:
+    mock_root.return_value = vault_root
+    (vault_root / "People" / "@Greta.md").write_text(
+        "---\ncircle: passive\nnext_action_at: 2026-05-15\n---\n\n## Logged contacts\n"
+    )
+    from scripts import fam_today
+
+    rows = fam_today.compute_rows(today=date(2026, 5, 15), include_below_threshold=False)
+    greta = next(row for row in rows if row.name == "Greta")
+    assert greta.score == 0
+    assert greta.days_overdue == 0
+
+
+@patch("scripts.lib.vault.get_vault_root")
 def test_today_rejects_missing_circle_without_writing(mock_root, vault_root: Path) -> None:
     mock_root.return_value = vault_root
     missing_circle = vault_root / "People" / "@Greta.md"

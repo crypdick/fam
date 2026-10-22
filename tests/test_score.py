@@ -75,6 +75,13 @@ def test_next_action_at_pulls_in_earlier(cfg: config.Config) -> None:
     assert math.isclose(score.score(p, last=None, today=TODAY, config=cfg), 10 / 180)
 
 
+def test_passive_next_action_uses_one_day_score_and_due_date(cfg: config.Config) -> None:
+    p = _person(circle="passive", next_action_at=TODAY - timedelta(days=2))
+    assert score.score(p, last=None, today=TODAY, config=cfg) == 2
+    assert score.days_overdue(p, last=None, today=TODAY, config=cfg) == 2
+    assert score.in_queue(p, score=2, config=cfg)
+
+
 def test_in_queue_filters_passive(cfg: config.Config) -> None:
     p = _person(circle="passive")
     assert not score.in_queue(p, score=float("-inf"), config=cfg)
