@@ -17,7 +17,7 @@ import yaml
 
 from . import vault as vault_mod
 
-CIRCLES = ("reference", "passive", "inner", "close", "orbit", "distant")
+CIRCLES = ("reference", "passive", "needs-triage", "inner", "close", "orbit", "distant")
 
 
 class PersonSchemaError(RuntimeError):

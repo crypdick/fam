@@ -17,10 +17,10 @@ Person notes are the source of truth for contact history. Link to them from any 
 
 ## Tools and commands
 
-Use the CLI or available [FAM MCP tools](../../docs/MCP.md#tools). MCP tools may have a `fam_` prefix. Use these operations for contact logs and fam fields; use file tools for free-form relationship context.
+Prefer the `fam` CLI. Use available [FAM MCP tools](../../docs/MCP.md#tools) when CLI access is unavailable; tools may have a `fam_` prefix. Use these operations for contact logs and fam fields; use file tools for free-form relationship context.
 
 - `fam list` shows all people as a table, sorted by name, including inactive circles, snoozes, and muted reminders. Use `--circle NAME`, `--location TEXT`, `--tag TAG`, `--interaction VALUE`, `--limit N`, or `--json`. Location uses a case-insensitive substring; tag and mode use whole-list membership. Filters combine before the limit. MCP equivalent: `list_people`.
-- `fam today` is shorthand for `fam list --today`: the ranked contact queue without writes. It accepts the same filters plus `--all`, `--include-snoozed`, and `--on-date YYYY-MM-DD`. JSON returns `{contacts: [...], events: [...]}`; text shows separate sections. Contact filters retain cadence exclusions even with `--all`; event reminders work in every circle. Metadata filters apply to both queues, and `--limit` caps each independently. Missing circles fail validation; explicitly set the intended circle with `fam person update PATH --circle NAME`.
+- `fam today` is shorthand for `fam list --today`: ranked contacts, one-off actions, people needing triage, and event reminders. It accepts the same filters plus `--all`, `--include-snoozed`, and `--on-date YYYY-MM-DD`. JSON returns `{contacts: [...], actions: [...], triage: [...], events: [...]}`; text shows separate sections. Contact filters retain cadence exclusions even with `--all`; event reminders work in every circle. Metadata filters apply to all lists, and `--limit` caps each independently. Missing circles fail validation; set them to `needs-triage` with `fam person update PATH --circle needs-triage` rather than guessing.
 - `fam events` shows important event reminders separately. Use `--on-date YYYY-MM-DD`, `--days N` to preview reminder windows, `--limit N`, `--include-snoozed`, and `--json`. MCP equivalent: `events`. See [important events](../../docs/DESIGN.md#important-events) for schema and recurrence.
 - `fam validate` checks configuration and person notes.
 - `fam person show PATH` returns JSON with the original note. Use exact paths from the list or queue for writes.
@@ -51,24 +51,26 @@ Mutating scripts validate before and after writes. Report errors verbatim and re
 
 ## Reminder fields
 
-Use a configured `circle`: `reference`, `passive`, `inner`, `close`, `orbit`, or `distant`. `reference` means no contact intent; `passive` means no cadence reminders.
+Use a configured `circle`: `reference`, `passive`, `needs-triage`, `inner`, `close`, `orbit`, or `distant`. `reference` means no contact intent; `passive` means an explicit choice to have no recurring reminders; `needs-triage` is the default until contact intent and circle are clear.
 
 The optional fields are:
 
 - `cadence_days_override`: Positive integer replacing the circle cadence.
 - `snooze_until`: `YYYY-MM-DD` date; hide until that date. Expired snoozes can be removed.
-- `next_action_at`: `YYYY-MM-DD` due date replacing the cadence due date. Keep overdue dates until the action is completed or dismissed; clear the date after logging the intended contact.
+- `next_action_at`: `YYYY-MM-DD` one-off action date. It appears in `actions` for every circle except `needs-triage`; triage people appear under `triage` with their action date. Keep overdue dates until the action is completed or dismissed; clear the date after logging the intended contact.
 - `periodic_contact_reminders`: Defaults to `true`. Set `false` to mute cadence reminders while allowing `next_action_at` to surface the person.
 - `contact_channels_ordered_preference`: Ordered list of channel names, such as `[signal, email]`.
 
-Circles configured without cadence stay out of the queue even with `next_action_at` set. See [contact queue](../../docs/DESIGN.md#contact-queue) for scoring.
+Circles without cadence stay out of the recurring contact queue. Explicit one-off actions remain visible in `actions` regardless of cadence thresholds; `needs-triage` people remain visible in `triage`. See [contact queue](../../docs/DESIGN.md#contact-queue) for scoring.
 
 ## Important events
 
-Use `important_events` for explicit birthdays, anniversaries, and one-off dates.
+Use `important_events` for supported birthdays, anniversaries, and one-off dates.
 Each entry has `name`, `date` (`MM-DD` annual or `YYYY-MM-DD` one-off), and
 optional `remind_days_before` (0–366; default 7). February 29 uses February 28
-in non-leap years. Populate dates only from supported context or user reports.
+in non-leap years. Capture clearly supported dates proactively; do not ask
+permission for the write. Ask only when person identity or date meaning is
+materially ambiguous. Record known precision and never invent a birth year.
 
 Read existing events before `fam person update PATH --important-events JSON`
 or MCP `update_person` with `important_events`: these replace the full list.
@@ -98,10 +100,12 @@ For scheduled MCP queues, pass the current date in the user's time zone as `on_d
 
 ## Add a person
 
-Check for an existing note anywhere in the vault. If a template is configured, use `fam person ensure "Jane Doe"` (MCP `ensure_person`); otherwise create the note using the [person template](../../examples/person_template.md) in the configured folder or existing layout. Use `fam person update PATH --circle NAME` to set the requested circle while preserving template fields. Log any reported interaction once its date is known.
+Check for an existing note anywhere in the vault. If a template is configured, use `fam person ensure "Jane Doe"` (MCP `ensure_person`); otherwise create the note using the [person template](../../examples/person_template.md) in the configured folder or existing layout. New or unclassified people default to `needs-triage`; assign a real circle when evidence supports it. Record clear agreed plans, promised follow-ups, and supported important dates directly without asking permission. Assume Ricardo wants to make plans unless he explicitly says he does not and that boundary is recorded in the person note. Never send a message or invitation.
 
 ## Relationship context
 
-Read relevant source notes when preparing outreach or updating relationship state. Put useful context under `## Other references`; do not copy every backlink or add summary placeholders.
+Read relevant authorized messages when preparing outreach or updating relationship state. Put concise, useful context under `## Other references`, including shared interests, how you met, open plans, and a grounded impression of the person's conversational style. Separate impressions from facts; avoid diagnoses or unsupported sensitive inferences. Do not copy every message or add empty summary placeholders.
+
+When likely duplicate records appear, automatically propose the exact note paths and evidence to Ricardo for confirmation. Do not merge or delete notes before confirmation. After he confirms, add alternate names to the canonical note's `aliases` property and cross-link the other record under `## Other references`; preserve both records unless he explicitly requests a merge. If he rejects the match, record enough disambiguation in FAM to prevent proposing it again.
 
 FAM does not read or send messages. Use external context only within separate authorization and report unavailable sources. Relationship maintenance alone does not authorize messages, invitations, reactions, or message edits.

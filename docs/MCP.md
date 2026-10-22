@@ -25,12 +25,15 @@ prevents startup. Clients send `Authorization: Bearer <token>` to `/mcp`.
 
 ## Tools
 
-- `today`: read-only `{contacts: [...], events: [...]}` with optional `on_date`,
+- `today`: read-only `{contacts: [...], actions: [...], triage: [...], events: [...]}` with optional
+  `on_date`,
   `include_below_threshold`, `circle`, `include_snoozed`, nonnegative `limit`,
   `location` (case-insensitive substring), `relationship_tag`, and
   `interaction_preference` (case-insensitive whole-list membership). Filters
-  combine before limits. Contact exclusions apply to `contacts`; explicit event
-  reminders also work in passive/reference circles and with cadence muted.
+  combine before limits. Contact cadence exclusions apply to `contacts`; manual
+  `next_action_at` dates for non-triage people appear in `actions`, and
+  `needs-triage` people appear in `triage`. Explicit event reminders also work
+  in passive/reference circles and with cadence muted.
   Limits apply to each queue independently. The object replaces the former
   contact-only array; consumers must read `contacts` for the previous rows.
   Default date uses the server's local timezone. Missing circles fail validation;

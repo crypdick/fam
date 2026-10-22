@@ -1,5 +1,5 @@
 ---
-circle: passive
+circle: needs-triage
 contact_channels_ordered_preference: []
 ---
 

@@ -16,7 +16,9 @@ from starlette.responses import PlainTextResponse
 from scripts import fam_events, fam_tend, fam_today
 from scripts.lib import people, validate, vault
 
-Circle = Literal["reference", "passive", "inner", "close", "orbit", "distant"]
+Circle = Literal[
+    "reference", "passive", "needs-triage", "inner", "close", "orbit", "distant"
+]
 OptionalField = Literal[
     "cadence_days_override",
     "snooze_until",
@@ -42,7 +44,8 @@ def create_server(*, token: str | None = None) -> FastMCP:
             "interaction, never from mentions. Resolve identity and explicit contact date "
             "before logging. Use exact paths from list_people or today for person operations. "
             "Use update_person for fam fields; file tools for free-form relationship context. "
-            "today is read-only; missing circles require an explicit update_person."
+            "today is read-only; assign missing or unclassified people to needs-triage "
+            "with update_person rather than guessing a substantive circle."
         ),
         auth=auth,
         mask_error_details=False,
@@ -68,11 +71,13 @@ def create_server(*, token: str | None = None) -> FastMCP:
     ) -> dict[str, Any]:
         """Rank who to contact without writes. on_date defaults to server-local date.
 
-        Returns {contacts: [...], events: [...]}. Contact cadence exclusions apply only
-        to contacts; explicit events also work in inactive circles and with cadence muted.
+        Returns {contacts: [...], actions: [...], triage: [...], events: [...]}. The actions
+        list contains manual actions for non-triage people; triage contains people awaiting
+        relationship classification. Contact cadence exclusions apply only to contacts;
+        explicit events also work in inactive circles and with cadence muted.
         Events appear from their advance-notice date through event day, sorted by date.
-        include_snoozed includes both queues' snoozed entries. Metadata filters apply
-        to both queues; limit caps each independently. include_below_threshold affects
+        include_snoozed includes snoozed entries in every list. Metadata filters apply
+        to every list; limit caps each independently. include_below_threshold affects
         contacts only. If no contact meets its threshold, suggests up to 10 eligible
         people by default; limit overrides that count.
         """

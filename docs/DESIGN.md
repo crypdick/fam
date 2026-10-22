@@ -9,12 +9,15 @@ identity, assess evidence, and edit free-form relationship context.
 
 `fam-circles.md` contains a fenced `yaml` block. Its `circles` mapping defines
 the cadence and alert threshold for each circle you use. Supported names are
-`reference`, `passive`, `inner`, `close`, `orbit`, and `distant`.
+`reference`, `passive`, `needs-triage`, `inner`, `close`, `orbit`, and `distant`.
 
-Include `reference` and `passive` with `cadence_days: null` and
+Include `reference`, `passive`, and `needs-triage` with `cadence_days: null` and
 `alert_threshold: null`. Use `reference` for people you note without contact
-intent, and `passive` for relationships without reminders. Circles with a
-cadence need a positive integer `cadence_days` and a finite numeric
+intent, `passive` when there is an explicit choice to keep a relationship
+without recurring reminders, and `needs-triage` when contact intent or the
+appropriate circle is not yet classified. `needs-triage` is a temporary review
+state, not a relationship judgment or contact cadence. Circles with a cadence
+need a positive integer `cadence_days` and a finite numeric
 `alert_threshold`. To turn off a circle's cadence, set both to `null`.
 Every person note must use a configured circle.
 
@@ -25,6 +28,7 @@ Create one `fam-circles.md` anywhere in the vault:
 circles:
   reference: {cadence_days: null, alert_threshold: null}
   passive:   {cadence_days: null, alert_threshold: null}
+  needs-triage: {cadence_days: null, alert_threshold: null}
   close:     {cadence_days: 30, alert_threshold: 0.0}
 ```
 ````
@@ -64,7 +68,7 @@ Create an `@Name.md` note with a configured circle and contact sections:
 
 ```markdown
 ---
-circle: close
+circle: needs-triage
 ---
 
 ## Logged contacts
@@ -83,19 +87,19 @@ content:
 | `circle` | Required configured circle name |
 | `cadence_days_override` | Positive integer replacing this person's circle cadence |
 | `snooze_until` | `YYYY-MM-DD` date; hide while today is earlier than this date |
-| `next_action_at` | `YYYY-MM-DD` date replacing the cadence-based due date |
-| `periodic_contact_reminders` | Boolean, default `true`; `false` mutes cadence reminders unless `next_action_at` is set |
+| `next_action_at` | `YYYY-MM-DD` date for a one-off action, surfaced separately from cadence reminders |
+| `periodic_contact_reminders` | Boolean, default `true`; `false` mutes cadence reminders while explicit one-off actions remain visible |
 | `contact_channels_ordered_preference` | List of channel names, such as `[signal, email]`; stored without sending or reading messages |
 | `location` | Optional current location string, such as `San Francisco` |
 | `relationship_tags` | List of relationship categories, such as `[friend, colleague]` |
 | `interaction_preferences` | List of intended modes, such as `[in_person, call]` |
 | `important_events` | Named annual or one-off dates with advance notice; see [important events](#important-events) |
 
-The example template starts new people in `passive`. Queue reads never repair
-notes. For a missing circle, explicitly run
-`fam person update "path/to/@Name.md" --circle reference` (or choose another
-configured circle). This permits only that target's missing-circle repair;
-other validation errors still stop writes.
+The example template starts new people in `needs-triage`. Queue reads never
+repair notes. For a missing circle, use
+`fam person update "path/to/@Name.md" --circle needs-triage`; this records an
+unclassified status without guessing contact intent. This permits only that
+target's missing-circle repair; other validation errors still stop writes.
 
 ### Contact history
 
@@ -145,23 +149,32 @@ Use `--on-date YYYY-MM-DD` with `--sort score` to select the scoring date;
 the default is the local date. Filters and sorting apply before `--limit`.
 Score sorting validates the vault and configuration before calculating scores.
 
-`fam list --today` shows the ranked contact queue and important event reminders.
+`fam list --today` shows the ranked contact queue, one-off actions, triage list,
+and important event reminders.
 `fam today` is shorthand for the same command, with the same filters and output.
-Text output shows separate contact and event sections. JSON and MCP `today`
-return `{contacts: [...], events: [...]}`. This replaces the former contact-only
-array; existing consumers must read `contacts` for the previous rows.
+Text output shows separate sections. JSON and MCP `today` return
+`{contacts: [...], actions: [...], triage: [...], events: [...]}`. The
+`actions` list contains manual `next_action_at` dates for every circle
+except `needs-triage`. The `triage` list contains `needs-triage` people, whether or
+not they have an action date. Both lists sort by action date then name and
+return up to 10 rows by default. The `limit` option caps each list independently.
+Existing consumers that used the former contact-only array should read
+`contacts` for those rows.
 `fam list` without `--today` still returns a person array.
 Queue options `--all` and `--include-snoozed` require this mode. The contact queue
 always sorts by score; `--sort name` is not supported with `--today`.
 
 ## Contact queue
 
-Circles without a cadence stay out of the contact queue. `fam today` also excludes
-snoozed people by default. People with `periodic_contact_reminders: false`
-need a manual action date to appear.
+Circles without a cadence stay out of the recurring contact queue. `fam today`
+also excludes snoozed people by default. A `next_action_at` date appears in the
+separate one-off `actions` list, so it is never hidden by cadence thresholds.
+`needs-triage` appears in the triage list. People with
+`periodic_contact_reminders: false` stay out of the recurring contact queue;
+their explicit one-off actions remain visible.
 
-For an eligible person, the due date is `next_action_at` if set. Otherwise it
-is the most recent logged contact plus the effective cadence. A person with
+For an eligible person without a manual action, the due date is the most recent
+logged contact plus the effective cadence. A person with
 neither a contact nor a manual action date has an infinite score and comes
 first. For everyone else:
 
@@ -261,9 +274,9 @@ Contact logging never completes, shifts, or removes an event reminder and
 events never count as contact evidence. Remove a one-off event to cancel it.
 
 `fam today` includes the same current event queue separately from contact
-scores. Its metadata and circle filters apply to both queues; `--limit N`
-caps each queue independently. `--all` affects contact scores only. Events
-are shown even when no contacts are eligible. No notification delivery or
+scores, one-off actions, and triage. Metadata and circle filters apply to all
+lists; `--limit N` caps each independently. `--all` affects contact scores only.
+Events are shown even when no contacts are eligible. No notification delivery or
 calendar synchronization is built in; schedulers and agents consume these reads.
 
 ## Person operations

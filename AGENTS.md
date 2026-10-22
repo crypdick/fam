@@ -25,7 +25,7 @@ Claude Code plugin. Personal CRM. Agent-driven, on top of plain-markdown person 
 
 ## Out of scope (MVP)
 
-Channel send/read, channel-derived `last_contacted`, Nextcloud watcher, Bases generation, birthdays, concurrency/locking, multi-vault. See spec.
+Channel send/read, channel-derived `last_contacted`, Nextcloud watcher, Bases generation, concurrency/locking, and multi-vault. Important dates use the supported `important_events` field; see [design](docs/DESIGN.md#important-events).
 
 ## Tests
 

@@ -38,6 +38,8 @@ def test_mcp_queue_validation_and_person_reads(vault_root: Path, monkeypatch):
             assert report.data == {"ok": True, "errors": []}
             queue = await client.call_tool("today", {"on_date": "2026-05-15", "limit": 1})
             assert queue.data["events"] == []
+            assert queue.data["actions"] == []
+            assert queue.data["triage"] == []
             assert queue.data["contacts"] == [
                 {
                     "name": "Dan",
@@ -88,6 +90,26 @@ def test_mcp_queue_falls_back_below_threshold(vault_root: Path, monkeypatch):
             assert [row["name"] for row in queue.data["contacts"]] == ["Alice"]
             assert queue.data["contacts"][0]["score"] == pytest.approx(-7 / 30)
             assert queue.data["contacts"][0]["days_overdue"] == -7
+
+    asyncio.run(check())
+
+
+def test_mcp_today_accepts_needs_triage_circle(vault_root: Path, monkeypatch):
+    monkeypatch.setenv("OBSIDIAN_VAULT_PATH", str(vault_root))
+    (vault_root / "People/@Unclassified.md").write_text(
+        "---\ncircle: needs-triage\n---\n\n## Logged contacts\n"
+    )
+
+    async def check():
+        async with Client(create_server()) as client:
+            queue = await client.call_tool(
+                "today", {"on_date": "2026-05-15", "circle": "needs-triage"}
+            )
+            assert queue.data["contacts"] == []
+            assert queue.data["actions"] == []
+            assert [row["path"] for row in queue.data["triage"]] == [
+                "People/@Unclassified.md"
+            ]
 
     asyncio.run(check())
 

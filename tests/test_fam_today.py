@@ -63,6 +63,8 @@ def test_today_json_output_has_required_keys(mock_root, vault_root: Path, capsys
     payload = json.loads(captured.out)
     assert payload  # non-empty
     assert payload["events"] == []
+    assert payload["actions"] == []
+    assert payload["triage"] == []
     row = payload["contacts"][0]
     assert {
         "name",
@@ -83,6 +85,76 @@ def test_today_table_includes_days_overdue_column(mock_root, vault_root: Path, c
     fam_today.run(today=date(2026, 5, 15), json_out=False)
     captured = capsys.readouterr()
     assert "DAYS_OVERDUE" in captured.out
+
+
+@patch("scripts.lib.vault.get_vault_root")
+def test_today_surfaces_triage_people_separately(mock_root, vault_root: Path) -> None:
+    mock_root.return_value = vault_root
+    (vault_root / "People" / "@Needs Action.md").write_text(
+        "---\ncircle: needs-triage\nnext_action_at: 2026-05-14\n---\n"
+        "\n## Logged contacts\n- 2026-05-01 — message\n"
+    )
+    (vault_root / "People" / "@Needs Review.md").write_text(
+        "---\ncircle: needs-triage\n---\n\n## Logged contacts\n"
+    )
+    from scripts import fam_today
+
+    result = fam_today.queues(today=date(2026, 5, 15))
+
+    assert [row["name"] for row in result["triage"]] == ["Needs Action", "Needs Review"]
+    assert result["triage"][0]["next_action_at"] == "2026-05-14"
+    assert result["triage"][0]["path"] == "People/@Needs Action.md"
+    assert all(row["circle"] == "needs-triage" for row in result["triage"])
+    assert all(row["name"] != "Needs Action" for row in result["contacts"])
+
+
+@patch("scripts.lib.vault.get_vault_root")
+def test_today_triage_respects_circle_filter_limit_and_snooze(mock_root, vault_root: Path) -> None:
+    mock_root.return_value = vault_root
+    (vault_root / "People" / "@Needs Action.md").write_text(
+        "---\ncircle: needs-triage\nnext_action_at: 2026-05-14\n---\n"
+        "\n## Logged contacts\n"
+    )
+    (vault_root / "People" / "@Snoozed.md").write_text(
+        "---\ncircle: needs-triage\nsnooze_until: 2026-06-01\n---\n"
+        "\n## Logged contacts\n"
+    )
+    from scripts import fam_today
+
+    result = fam_today.queues(today=date(2026, 5, 15), circle="needs-triage", limit=1)
+    assert [row["name"] for row in result["triage"]] == ["Needs Action"]
+    assert fam_today.queues(today=date(2026, 5, 15), circle="passive")["triage"] == []
+
+
+@patch("scripts.lib.vault.get_vault_root")
+def test_today_surfaces_manual_actions_separately(mock_root, vault_root: Path) -> None:
+    mock_root.return_value = vault_root
+    (vault_root / "People" / "@Passive Action.md").write_text(
+        "---\ncircle: passive\nnext_action_at: 2026-05-14\n---\n"
+        "\n## Logged contacts\n"
+    )
+    (vault_root / "People" / "@Reference Action.md").write_text(
+        "---\ncircle: reference\nnext_action_at: 2026-05-16\n---\n"
+        "\n## Logged contacts\n"
+    )
+    (vault_root / "People" / "@Active Action.md").write_text(
+        "---\ncircle: close\nnext_action_at: 2026-05-15\n---\n"
+        "\n## Logged contacts\n"
+    )
+    from scripts import fam_today
+
+    result = fam_today.queues(today=date(2026, 5, 15))
+
+    assert [row["name"] for row in result["actions"]] == [
+        "Passive Action",
+        "Active Action",
+        "Reference Action",
+    ]
+    assert result["actions"][0]["next_action_at"] == "2026-05-14"
+    assert result["actions"][2]["circle"] == "reference"
+    assert all(row["name"] != "Active Action" for row in result["contacts"])
+    filtered = fam_today.queues(today=date(2026, 5, 15), circle="passive")
+    assert [row["name"] for row in filtered["actions"]] == ["Passive Action"]
 
 
 @patch("scripts.lib.vault.get_vault_root")
@@ -118,8 +190,9 @@ def test_today_includes_periodic_muted_with_next_action_at(mock_root, vault_root
     )
     from scripts import fam_today
 
-    rows = fam_today.compute_rows(today=date(2026, 5, 15), include_below_threshold=False)
-    assert any(r.name == "Greta" for r in rows)
+    result = fam_today.queues(today=date(2026, 5, 15))
+    assert any(row["name"] == "Greta" for row in result["actions"])
+    assert all(row["name"] != "Greta" for row in result["contacts"])
 
 
 @patch("scripts.lib.vault.get_vault_root")

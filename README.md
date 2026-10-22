@@ -23,7 +23,9 @@ fam tend --dry-run
 ```
 
 Important event reminders appear in `fam today` and a separate `fam events` queue.
-`today --json` returns `{contacts: [...], events: [...]}`. See
+`today --json` returns `{contacts: [...], actions: [...], triage: [...], events: [...]}`.
+One-off actions and people awaiting classification have separate lists. See
+[the FAM design](docs/DESIGN.md#contact-queue) for details and
 [important events](docs/DESIGN.md#important-events) for birthdays, anniversaries,
 and one-off dates.
 
