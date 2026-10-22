@@ -117,10 +117,10 @@ def _parse(path: Path) -> Config:
             raise ConfigError(
                 f"{path}: {name} must set both cadence_days and alert_threshold or neither"
             )
-        if name in {"reference", "passive"} and cadence is not None:
+        if name in {"reference", "passive", "needs-triage"} and cadence is not None:
             raise ConfigError(f"{path}: {name} must have null cadence_days and alert_threshold")
         circles[name] = CircleConfig(cadence_days=cadence, alert_threshold=threshold)
-    for required in ("reference", "passive"):
+    for required in ("reference", "passive", "needs-triage"):
         if required not in circles:
             raise ConfigError(f"{path}: missing required circle {required!r}")
     people_folder = _relative_path(raw.get("people_folder"), "people_folder", path)

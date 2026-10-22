@@ -1,4 +1,4 @@
-"""Contact queue: ranked "who to reach out to" queue."""
+"""Daily FAM queues for cadence contacts, one-off actions, triage, and events."""
 
 from __future__ import annotations
 
@@ -26,6 +26,16 @@ class Row:
     location: str | None
     relationship_tags: list[str]
     interaction_preferences: list[str]
+
+
+@dataclass(frozen=True)
+class OneShotRow:
+    name: str
+    circle: str
+    next_action_at: date | None
+    last_contacted: date | None
+    path: Path
+    snoozed: bool
 
 
 def compute_rows(
@@ -59,13 +69,15 @@ def compute_rows(
     ):
         if not p.periodic_contact_reminders and p.next_action_at is None:
             continue
+        if p.next_action_at is not None:
+            continue  # Manual actions appear in their own list, apart from cadence scoring.
         last = interactions.last_contacted(p)
         snoozed = bool(p.snooze_until and today < p.snooze_until)
         if snoozed and not include_snoozed:
             continue
         scored_person = replace(p, snooze_until=None) if include_snoozed else p
         s = score.score(scored_person, last=last, today=today, config=cfg)
-        # Any no-cadence circle (for example reference/passive) stays out of the queue.
+        # No-cadence circles stay out of cadence scoring; manual actions and triage are separate.
         if cfg.circles[p.circle].cadence_days is None:
             continue
         days = (today - last).days if last else None
@@ -142,6 +154,135 @@ def rows_as_dicts(rows: list[Row]) -> list[dict[str, Any]]:
     ]
 
 
+def _one_shot_rows(
+    *,
+    today: date,
+    circle: str | None,
+    circles: tuple[str, ...],
+    require_action: bool,
+    include_snoozed: bool = False,
+    limit: int | None = None,
+    location: str | None = None,
+    relationship_tag: str | None = None,
+    interaction_preference: str | None = None,
+) -> list[OneShotRow]:
+    if limit is not None and (type(limit) is not int or limit < 0):
+        raise ValueError("limit must be a nonnegative integer")
+    if circle is not None and circle not in person.CIRCLES:
+        raise ValueError("unknown circle")
+    if circle is not None and circle not in circles:
+        return []
+    vault_root = vault.get_vault_root()
+    rows = []
+    for p in people.matching_people(
+        vault_root,
+        circle=circle if circle is not None else None,
+        location=location,
+        relationship_tag=relationship_tag,
+        interaction_preference=interaction_preference,
+    ):
+        if p.circle not in circles or (require_action and p.next_action_at is None):
+            continue
+        snoozed = bool(p.snooze_until and today < p.snooze_until)
+        if snoozed and not include_snoozed:
+            continue
+        rows.append(
+            OneShotRow(
+                name=p.name,
+                circle=p.circle,
+                next_action_at=p.next_action_at,
+                last_contacted=interactions.last_contacted(p),
+                path=p.path.relative_to(vault_root),
+                snoozed=snoozed,
+            )
+        )
+    rows.sort(
+        key=lambda row: (
+            row.next_action_at or date.max,
+            row.name.casefold(),
+            str(row.path),
+        )
+    )
+    return rows[:10] if limit is None else rows[:limit]
+
+
+def compute_triage_rows(
+    *,
+    today: date,
+    circle: str | None = None,
+    include_snoozed: bool = False,
+    limit: int | None = None,
+    location: str | None = None,
+    relationship_tag: str | None = None,
+    interaction_preference: str | None = None,
+) -> list[OneShotRow]:
+    """List people awaiting relationship classification, ordered by manual action date."""
+    return _one_shot_rows(
+        today=today,
+        circle=circle,
+        circles=("needs-triage",),
+        require_action=False,
+        include_snoozed=include_snoozed,
+        limit=limit,
+        location=location,
+        relationship_tag=relationship_tag,
+        interaction_preference=interaction_preference,
+    )
+
+
+def compute_action_rows(
+    *,
+    today: date,
+    circle: str | None = None,
+    include_snoozed: bool = False,
+    limit: int | None = None,
+    location: str | None = None,
+    relationship_tag: str | None = None,
+    interaction_preference: str | None = None,
+) -> list[OneShotRow]:
+    """List manual one-off actions, excluding triage people shown in their own list."""
+    return _one_shot_rows(
+        today=today,
+        circle=circle,
+        circles=tuple(circle for circle in person.CIRCLES if circle != "needs-triage"),
+        require_action=True,
+        include_snoozed=include_snoozed,
+        limit=limit,
+        location=location,
+        relationship_tag=relationship_tag,
+        interaction_preference=interaction_preference,
+    )
+
+
+def one_shot_rows_as_dicts(rows: list[OneShotRow]) -> list[dict[str, Any]]:
+    return [
+        {
+            "name": row.name,
+            "circle": row.circle,
+            "next_action_at": row.next_action_at.isoformat() if row.next_action_at else None,
+            "last_contacted": row.last_contacted.isoformat() if row.last_contacted else None,
+            "path": str(row.path),
+            "snoozed": row.snoozed,
+        }
+        for row in rows
+    ]
+
+
+def _format_one_shots(rows: list[dict[str, Any]], *, empty_message: str) -> str:
+    if not rows:
+        return empty_message
+    return "\n".join(
+        [
+            "NEXT_ACTION_AT  NAME / PATH",
+            *(
+                f"{row['next_action_at'] or '-':<14}  "
+                f"{row['name']} / {row['path']}"
+                for row in rows
+            ),
+        ]
+    )
+
+
 def queues(
     *,
     today: date,
@@ -173,7 +314,30 @@ def queues(
         relationship_tag=relationship_tag,
         interaction_preference=interaction_preference,
     )
-    return {"contacts": rows_as_dicts(contacts), "events": events}
+    triage = compute_triage_rows(
+        today=today,
+        circle=circle,
+        include_snoozed=include_snoozed,
+        limit=limit,
+        location=location,
+        relationship_tag=relationship_tag,
+        interaction_preference=interaction_preference,
+    )
+    actions = compute_action_rows(
+        today=today,
+        circle=circle,
+        include_snoozed=include_snoozed,
+        limit=limit,
+        location=location,
+        relationship_tag=relationship_tag,
+        interaction_preference=interaction_preference,
+    )
+    return {
+        "contacts": rows_as_dicts(contacts),
+        "actions": one_shot_rows_as_dicts(actions),
+        "triage": one_shot_rows_as_dicts(triage),
+        "events": events,
+    }
 
 
 def run(
@@ -202,4 +366,12 @@ def run(
         print(_json.dumps(result, indent=2, allow_nan=False))
     else:
         print(_format_table(result["contacts"]))
+        print(
+            "\nOne-off actions\n"
+            + _format_one_shots(result["actions"], empty_message="No one-off actions.")
+        )
+        print(
+            "\nNeeds triage\n"
+            + _format_one_shots(result["triage"], empty_message="No people need triage.")
+        )
         print("\nImportant events\n" + fam_events.format_events(result["events"]))

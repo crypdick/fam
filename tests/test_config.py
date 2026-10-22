@@ -11,11 +11,15 @@ from scripts.lib import config
 
 def test_load_parses_fixture_vault(vault_root: Path) -> None:
     cfg = config.load(vault_root)
-    assert set(cfg.circles) == {"reference", "passive", "inner", "close", "orbit", "distant"}
+    assert set(cfg.circles) == {
+        "reference", "passive", "needs-triage", "inner", "close", "orbit", "distant"
+    }
     assert cfg.circles["inner"].cadence_days == 7
     assert cfg.circles["inner"].alert_threshold == -0.2
     assert cfg.circles["passive"].cadence_days is None
     assert cfg.circles["passive"].alert_threshold is None
+    assert cfg.circles["needs-triage"].cadence_days is None
+    assert cfg.circles["needs-triage"].alert_threshold is None
 
 
 def test_load_aborts_when_circles_file_missing(tmp_path: Path) -> None:
@@ -107,7 +111,8 @@ def test_load_omits_stub_fields_when_absent(vault_root: Path) -> None:
     (vault_root / "fam-circles.md").write_text(
         "# fam — circles\n\n```yaml\ncircles:\n"
         "  reference: {cadence_days: null, alert_threshold: null}\n"
-        "  passive: {cadence_days: null, alert_threshold: null}\n```\n"
+        "  passive: {cadence_days: null, alert_threshold: null}\n"
+        "  needs-triage: {cadence_days: null, alert_threshold: null}\n```\n"
     )
     cfg = config.load(vault_root)
     assert cfg.people_folder is None
@@ -153,6 +158,18 @@ def test_reference_and_passive_must_have_no_cadence(vault_root: Path):
         )
     )
     with pytest.raises(config.ConfigError, match="reference"):
+        config.load(vault_root)
+
+
+def test_needs_triage_must_have_no_cadence(vault_root: Path):
+    path = vault_root / "fam-circles.md"
+    path.write_text(
+        path.read_text().replace(
+            "needs-triage: {cadence_days: null, alert_threshold: null}",
+            "needs-triage: {cadence_days: 14, alert_threshold: 0}",
+        )
+    )
+    with pytest.raises(config.ConfigError, match="needs-triage"):
         config.load(vault_root)
 
 

@@ -7,7 +7,7 @@ description: Reconcile configured prospect feeds and prepare relationship review
 
 Use [fam](../fam/SKILL.md) for note operations. Sources, tracker paths, review state, time zone, schedules, and exceptions come from the task or vault configuration. External sources require separate authorization.
 
-Apply existing user decisions within the task's scope. Leave questions about friendship interest, circles, and cadence for [fam-review](../fam-review/SKILL.md).
+Apply existing user decisions within the task's scope. Save clear plans, promised follow-ups, and supported important dates to FAM without asking permission. Assume Ricardo wants to make plans unless he explicitly says he does not and that boundary is recorded in the person note. Use `needs-triage` for a newly identified person whose substantive circle is unclear; leave uncertain identity matches for [fam-review](../fam-review/SKILL.md) and propose likely duplicates there for confirmation.
 
 ## Reconcile intake
 
@@ -17,7 +17,7 @@ Compare stable row identities and known aliases. Renames, imports, changed times
 
 Check plausible candidates against existing person notes and relevant authorized context. A contact import does not establish friendship interest; absence from an address book does not exclude a candidate. Limit external searches to the relevant person and context. Treat contact-addition dates as tentative calendar search anchors, not meeting evidence.
 
-Save supported prospects in the configured tracker. Keep uncertain candidates pending with evidence and a question to resolve. Avoid importing an entire address book into the tracker. Save candidates and dispositions before advancing source checkpoints; retain pending candidates after marking rows seen.
+Save an identified person with a clear relationship-relevant interaction in FAM using `needs-triage` when the final circle is unclear; do not wait for approval to save an obvious record or action. Keep uncertain identities pending with evidence and one question. Avoid importing an entire address book. Save candidates and dispositions before advancing source checkpoints; retain pending candidates after marking rows seen.
 
 ## Prepare reviews
 
