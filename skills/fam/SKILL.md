@@ -92,7 +92,7 @@ existing values; do not infer friendship interest from imports or mentions.
 1. Resolve the person note; ask if the name is ambiguous.
 2. Establish an actual interaction from the user's report or source evidence. A backlink, dated filename, calendar entry, or suggested outreach alone is insufficient.
 3. Resolve the date in the user's time zone. Ask if the date is unknown; do not assume today.
-4. Use `fam person log-contact PATH --date YYYY-MM-DD --description "Context"` or MCP `log_contact`. The operation inserts the bullet under the real `## Logged contacts` heading, creates that section if absent, and deduplicates exact date/description retries. Distinguish separate same-day interactions in their descriptions. Add `--complete-action` only if this contact completes the pending action; otherwise its date remains unchanged.
+4. Use `fam person log-contact PATH --date YYYY-MM-DD --description "Context"` or MCP `log_contact`. Write a short paraphrase of the relationship-relevant substance and outcome, not a message transcript. Log one meaningful conversation or shared activity, not every message in it. Don't paste routine incoming messages or repeated snapshot previews. Preserve exact wording only when it materially matters to a boundary, promise, or decision. The operation inserts the bullet in the real `## Logged contacts` section, creates that section if absent, and deduplicates exact date/description retries. Distinguish separate same-day interactions in their descriptions. Add `--complete-action` only if this contact completes the pending action; otherwise its date remains unchanged.
 
 Derive `last_contacted` from this section; never store it in frontmatter. Missing logged history does not prove that no contact occurred.
 
@@ -104,7 +104,7 @@ Check for an existing note anywhere in the vault. If a template is configured, u
 
 ## Relationship context
 
-Read relevant authorized messages when preparing outreach or updating relationship state. Put concise, useful context under `## Other references`, including shared interests, how you met, open plans, and a grounded impression of the person's conversational style. Separate impressions from facts; avoid diagnoses or unsupported sensitive inferences. Do not copy every message or add empty summary placeholders.
+Read relevant authorized messages when preparing outreach or updating relationship state. FAM notes distill relationship context. They aren't archives of every message received. Put concise, useful context under `## Other references`, including shared interests, how you met, open plans, and a grounded impression of the person's conversational style. Paraphrase the substance. Keep exact message wording only when it materially matters to a boundary, promise, or decision. Separate impressions from facts. Avoid diagnoses or unsupported sensitive inferences. Don't copy every message or add empty summary placeholders.
 
 When likely duplicate records appear, automatically propose the exact note paths and evidence to Ricardo for confirmation. Do not merge or delete notes before confirmation. After he confirms, add alternate names to the canonical note's `aliases` property and cross-link the other record under `## Other references`; preserve both records unless he explicitly requests a merge. If he rejects the match, record enough disambiguation in FAM to prevent proposing it again.
 
