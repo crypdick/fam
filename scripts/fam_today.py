@@ -65,8 +65,8 @@ def compute_rows(
             continue
         scored_person = replace(p, snooze_until=None) if include_snoozed else p
         s = score.score(scored_person, last=last, today=today, config=cfg)
-        # Any no-cadence circle (for example reference/passive) stays out of the queue.
-        if cfg.circles[p.circle].cadence_days is None:
+        # Explicit one-shot actions override the circle's periodic cadence setting.
+        if cfg.circles[p.circle].cadence_days is None and p.next_action_at is None:
             continue
         days = (today - last).days if last else None
         do = score.days_overdue(scored_person, last=last, today=today, config=cfg)
