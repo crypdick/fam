@@ -114,6 +114,31 @@ def test_mcp_today_accepts_needs_triage_circle(vault_root: Path, monkeypatch):
     asyncio.run(check())
 
 
+def test_mcp_today_keeps_passive_actions_separate(vault_root: Path, monkeypatch):
+    monkeypatch.setenv("OBSIDIAN_VAULT_PATH", str(vault_root))
+    (vault_root / "People/@Passive Action.md").write_text(
+        "---\ncircle: passive\nnext_action_at: 2026-05-15\n---\n\n## Logged contacts\n"
+    )
+    (vault_root / "People/@Reference Action.md").write_text(
+        "---\ncircle: reference\nnext_action_at: 2026-05-14\n---\n\n## Logged contacts\n"
+    )
+
+    async def check():
+        async with Client(create_server()) as client:
+            result = await client.call_tool("today", {"on_date": "2026-05-15"})
+            assert [row["name"] for row in result.data["actions"]] == [
+                "Reference Action", "Passive Action"
+            ]
+            assert all(row["name"] != "Passive Action" for row in result.data["contacts"])
+            filtered = await client.call_tool(
+                "today", {"on_date": "2026-05-15", "circle": "passive"}
+            )
+            assert [row["name"] for row in filtered.data["actions"]] == ["Passive Action"]
+            assert filtered.data["contacts"] == []
+
+    asyncio.run(check())
+
+
 def test_mcp_tend_previews_without_writing(vault_root: Path, monkeypatch):
     monkeypatch.setenv("OBSIDIAN_VAULT_PATH", str(vault_root))
     before = {p: p.read_bytes() for p in vault_root.rglob("*.md")}

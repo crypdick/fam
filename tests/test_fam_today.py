@@ -195,6 +195,40 @@ def test_today_includes_periodic_muted_with_next_action_at(mock_root, vault_root
     assert all(row["name"] != "Greta" for row in result["contacts"])
 
 
+@pytest.mark.parametrize("circle", ["passive", "reference"])
+@pytest.mark.parametrize("include_snoozed", [False, True])
+def test_today_includes_inactive_actions_separately(
+    vault_root: Path, monkeypatch, capsys, circle, include_snoozed
+) -> None:
+    from scripts.cli import main
+
+    monkeypatch.setenv("OBSIDIAN_VAULT_PATH", str(vault_root))
+    (vault_root / "People" / "@Greta.md").write_text(
+        f"---\ncircle: {circle}\nnext_action_at: 2026-05-15\n"
+        "periodic_contact_reminders: false\n---\n\n## Logged contacts\n"
+    )
+    (vault_root / "People/@Snoozed.md").write_text(
+        f"---\ncircle: {circle}\nnext_action_at: 2026-05-14\n"
+        "snooze_until: 2026-06-01\n---\n\n## Logged contacts\n"
+    )
+    (vault_root / "People/@Other.md").write_text(
+        "---\ncircle: close\nnext_action_at: 2026-05-13\n---\n\n## Logged contacts\n"
+    )
+    before = {p: p.read_bytes() for p in vault_root.rglob("*.md")}
+    arguments = ["today", "--on-date", "2026-05-15", "--circle", circle, "--json"]
+    if include_snoozed:
+        arguments.append("--include-snoozed")
+    assert main(arguments) == 0
+    result = json.loads(capsys.readouterr().out)
+
+    expected = ["Snoozed", "Greta"] if include_snoozed else ["Greta"]
+    assert [row["name"] for row in result["actions"]] == expected
+    assert result["actions"][-1]["next_action_at"] == "2026-05-15"
+    assert result["contacts"] == []
+    assert result["triage"] == []
+    assert {p: p.read_bytes() for p in vault_root.rglob("*.md")} == before
+
+
 @patch("scripts.lib.vault.get_vault_root")
 def test_today_rejects_missing_circle_without_writing(mock_root, vault_root: Path) -> None:
     mock_root.return_value = vault_root
