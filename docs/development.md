@@ -28,7 +28,7 @@ Use absolute executable and project paths when the scheduler has a different
 working directory or `PATH`. If the parent process sets `VIRTUAL_ENV` for
 another environment, unset it before invoking `uv`.
 
-Set `OBSIDIAN_VAULT_PATH` and `FAM_CIRCLES_PATH` to avoid CLI vault discovery and configuration scanning. Templater creation still needs Obsidian running. Keep deployment paths in the scheduler environment or local wrapper.
+Set `OBSIDIAN_VAULT_PATH` and `FAM_CIRCLES_PATH` to avoid CLI vault discovery and configuration scanning. The default Templater creation backend still needs Obsidian running. Use the explicit [headless creation backend](DESIGN.md#creation) for static templates in unattended deployments. Keep deployment paths in the scheduler environment or local wrapper.
 
 If a command can't read configuration, verify the selected path and the
 scheduled process's file permissions. On macOS, that process might need Documents

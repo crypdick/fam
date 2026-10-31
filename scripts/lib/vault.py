@@ -1,9 +1,10 @@
-"""Thin wrapper around the `obsidian` CLI.
+"""Vault reads and configured CLI creation backends.
 
 Duck-typed: do not preflight-check that the CLI is installed or that
 the app is running. Just call. If it fails, raise with stderr verbatim
 so the caller (or the user) can act on the message.
 """
+
 from __future__ import annotations
 
 import os
@@ -19,7 +20,7 @@ SYNC_CONFLICT_RE = re.compile(r"\.sync-conflict-\d{8}-\d{6}-[A-Z0-9]+")
 
 
 class ObsidianCliError(RuntimeError):
-    """Raised when an `obsidian` invocation returns nonzero."""
+    """Raised when a vault CLI operation fails."""
 
 
 def obsidian_executable() -> str:
@@ -140,6 +141,59 @@ def get_vault_root() -> Path:
     return Path(out.strip())
 
 
+def _create_static_from_template(*, template: Path, file: Path, vault_root: Path) -> int:
+    """Pass static template bytes to the existing verified, create-only writer."""
+    root = vault_root.resolve()
+    for relative in (template, file):
+        if (
+            relative.is_absolute()
+            or ".." in relative.parts
+            or not (root / relative).resolve().is_relative_to(root)
+        ):
+            raise ObsidianCliError("template and destination must stay inside the selected vault")
+    if any(part.startswith(".") or part == "_sources" for part in file.parts):
+        raise ObsidianCliError("person destination cannot be hidden or a protected _sources path")
+    for depth in range(1, len(file.parts) + 1):
+        requested = root.joinpath(*file.parts[:depth])
+        actual = resolve_case_insensitive(requested, root)
+        if actual is None:
+            break
+        if actual != requested:
+            raise ObsidianCliError(f"case-distinct destination exists: {actual}; requested {file}")
+    try:
+        content = (root / template).read_bytes()
+    except OSError as exc:
+        raise ObsidianCliError(f"cannot read configured person template {template}: {exc}") from exc
+    if b"<%" in content or b"{{" in content:
+        raise ObsidianCliError(
+            f"dynamic person template {template} requires the templater creation backend; "
+            "obsidian-knowledge accepts only static template content"
+        )
+    writer = shutil.which("obsidian-knowledge")
+    if writer is None:
+        raise ObsidianCliError(
+            "FAM_CREATION_BACKEND=obsidian-knowledge requires the obsidian-knowledge CLI on PATH"
+        )
+    try:
+        result = subprocess.run(
+            [writer, "write", "--vault", str(root), file.as_posix()],
+            input=content,
+            capture_output=True,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ObsidianCliError(f"obsidian-knowledge create failed: {exc}") from exc
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).decode(errors="replace").strip()
+        raise ObsidianCliError(detail or f"obsidian-knowledge exited {result.returncode}")
+    if not (root / file).is_file():
+        raise ObsidianCliError(
+            f"obsidian-knowledge reported success but did not materialize {file}"
+        )
+    return 1
+
+
 def create_from_template(
     *,
     template: Path,
@@ -149,13 +203,19 @@ def create_from_template(
     poll_timeout_s: float = 2.0,
     poll_interval_s: float = 0.2,
 ) -> int:
-    """Invoke `obsidian templater:create-from-template` to materialize `file`
+    """Materialize a configured person template using the selected backend.
+
+    FAM_CREATION_BACKEND=obsidian-knowledge selects the verified writer for
+    static templates, including its configured creation metadata. No fallback
+    follows writer errors. The default templater backend invokes the desktop.
+
+    Invoke `obsidian templater:create-from-template` to materialize `file`
     from `template`. Both are vault-relative paths; `vault_root` is the
     absolute filesystem root used to verify the file actually persisted.
 
     Returns the number of attempts used (1 on first-try success).
 
-    Requires the Templater plugin and its CLI command. The template must use
+    The default backend requires Templater and its CLI command. Its template uses
     static YAML frontmatter — `processFrontMatter` inside `<%* %>` blocks
     races Templater's write pipeline and silently loses fields.
 
@@ -171,16 +231,25 @@ def create_from_template(
     retrying produces duplicate stubs — raise immediately with the actual
     path so the caller can surface the underlying Obsidian misconfiguration.
     """
+    backend = os.environ.get("FAM_CREATION_BACKEND", "templater")
+    if backend == "obsidian-knowledge":
+        return _create_static_from_template(template=template, file=file, vault_root=vault_root)
+    if backend != "templater":
+        raise ObsidianCliError(
+            f"unknown FAM_CREATION_BACKEND {backend!r}; use templater or obsidian-knowledge"
+        )
     abs_target = vault_root / file
     deadline_steps = max(1, int(poll_timeout_s / poll_interval_s))
     last_err: Exception | None = None
     for attempt in range(1, max_attempts + 1):
         try:
-            call([
-                "templater:create-from-template",
-                f"template={template.as_posix()}",
-                f"file={file.as_posix()}",
-            ])
+            call(
+                [
+                    "templater:create-from-template",
+                    f"template={template.as_posix()}",
+                    f"file={file.as_posix()}",
+                ]
+            )
         except ObsidianCliError as e:
             last_err = e
             continue

@@ -288,11 +288,26 @@ non-person paths, hidden notes, conflict copies, and symlink escapes are rejecte
 
 ### Creation
 
-`fam person ensure "Jane Doe"` creates one missing person note through the
-configured Templater template, without scanning mentions. Names may include the
+`fam person ensure "Jane Doe"` creates one missing person note from the
+configured template, without scanning mentions. Names may include the
 leading `@`; paths and wikilink syntax are rejected. An existing note anywhere
 in the vault is left unchanged. New notes use `people_folder` and
-`person_template`. Creation retries and checks that Templater saved the file.
+`person_template`. The default `templater` backend retries and checks that
+Templater saved the file; it requires Obsidian running with Templater installed.
+
+For unattended creation, install the
+[obsidian-knowledge CLI](https://github.com/crypdick/obsidian-knowledge) and set
+`FAM_CREATION_BACKEND=obsidian-knowledge` in the CLI/MCP environment. It passes
+the exact configured static person template to `obsidian-knowledge write`
+with an explicit vault root and without `--replace`. Existing targets are
+refused, and writer errors never trigger another backend. No desktop is needed.
+The writer applies its configured, vault-owned creation defaults; provide its
+shared `config.yaml` through `XDG_CONFIG_HOME` when the deployment uses those
+defaults. FAM does not interpret template code or invent its own metadata.
+Templates containing Templater `<%` or `{{` substitution syntax are rejected by
+this backend; use the default desktop backend for dynamic templates. Both
+template and destination must remain inside the vault. Hidden/protected-source
+destinations and case-distinct destination paths are refused.
 
 `fam tend` creates missing person notes from unresolved links. Preview with
 `fam tend --dry-run`, then rerun without `--dry-run` if the candidates
