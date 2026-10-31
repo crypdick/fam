@@ -77,8 +77,10 @@ Writes validate the vault before and after changes and validate proposed fields
 before writing. See [person operations](DESIGN.md#person-operations) for semantics.
 
 Tools call shared Python operations directly, with no shell subprocess for CLI
-commands. Templater creation needs Obsidian running; other operations need only
-a configured filesystem root. Use existing file tools for free-form relationship
+commands. Default Templater creation needs Obsidian running; the explicit
+[headless creation backend](DESIGN.md#creation) supports static templates through
+the verified note writer. Other operations need only a configured filesystem
+root. Use existing file tools for free-form relationship
 context. Reviews, gardening orchestration, evidence assessment, and external
 intake remain agent workflows. See [validation and failures](DESIGN.md#validation-and-failures).
 
