@@ -115,6 +115,48 @@ def test_manual_bump_in_earlier_push_commit_is_preserved_and_synced(release_repo
     assert_versions(release_repo, "1.6.0")
 
 
+def test_uv_package_only_bump_passes_checkout_checks_and_syncs_at_release(release_repo):
+    project = release_repo / "pyproject.toml"
+    project.write_text(project.read_text() + '\n[project.scripts]\nfam = "scripts.cli:main"\n')
+    metadata_tests = release_repo / "tests" / "test_project_metadata.py"
+    metadata_tests.parent.mkdir()
+    metadata_tests.write_bytes((SCRIPT.parents[1] / "tests" / metadata_tests.name).read_bytes())
+    subprocess.run(
+        ["uv", "lock", "--offline", "--python", sys.executable],
+        cwd=release_repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    previous = commit(release_repo, "base")
+    subprocess.run(
+        ["uv", "version", "--bump", "minor", "--no-sync", "--offline"],
+        cwd=release_repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert (
+        json.loads((release_repo / ".claude-plugin/plugin.json").read_text())["version"] == "1.5.5"
+    )
+    lock = tomllib.loads((release_repo / "uv.lock").read_text())
+    assert next(item["version"] for item in lock["package"] if item["name"] == "fam") == "1.6.0"
+
+    quality = subprocess.run(
+        [sys.executable, "-m", "pytest", "tests/test_project_metadata.py", "-q"],
+        cwd=release_repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert quality.returncode == 0, quality.stdout + quality.stderr
+    source = commit(release_repo, "package-only minor release")
+    result = run_release(release_repo, source, previous)
+    assert result.returncode == 0, result.stderr
+    assert_versions(release_repo, "1.6.0")
+
+
 def test_codex_build_suffix_is_synced_to_release_version(release_repo):
     previous = commit(release_repo, "base")
     path = release_repo / ".codex-plugin/plugin.json"

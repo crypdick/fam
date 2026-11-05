@@ -32,11 +32,14 @@ After checks pass for a push to `main`, CI increments the patch version from
 `tools/prepare_release.py` owns release version selection and manifest sync.
 
 For a manual release, run `uv version --bump minor` (or `major` or `patch`),
-update the three plugin manifests to the same version, and commit those files
-with `uv.lock`. The metadata test requires versions to agree before release.
-`pyproject.toml` is the version source of truth; CI preserves a version higher
+then commit `pyproject.toml` and the refreshed `uv.lock`. CI updates the plugin
+manifests. `pyproject.toml` is the version source of truth; CI preserves a version higher
 than the branch version before the whole push, including a bump in an earlier
 pushed commit. Decreased versions fail release preparation.
+
+Checkout metadata tests require generated plugin manifests to agree with each
+other; the package may have a pending manual version bump. Release CLI tests
+verify generated manifests match the package after preparation.
 
 Feature branches and pull requests only run checks. Retries reuse the release
 commit, and runs overtaken by another push skip release. Branch rules must allow
