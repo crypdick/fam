@@ -35,7 +35,7 @@ target-version = "py313"
 select = ["E", "F", "W", "I", "B", "UP"]
 
 [tool.pyright]
-include = ["scripts", "tests"]
+include = ["scripts", "tests", "tools"]
 pythonVersion = "3.13"
 typeCheckingMode = "standard"
 
