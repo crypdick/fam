@@ -45,7 +45,7 @@ From the repository, prefix commands with `uv run`. Elsewhere use
 `uv run --project "PLUGIN_ROOT" fam SUBCOMMAND ...`, replacing `PLUGIN_ROOT`
 with the repository path.
 
-CLI vault discovery needs Obsidian running with **Settings > General > Command line interface** enabled. Tending also needs Templater and the configured `people_folder` and `person_template`. Use static YAML frontmatter in templates; the caller sets the destination. See [configuration](../../docs/DESIGN.md#configuration) for setup.
+CLI vault discovery needs Obsidian running with **Settings > General > Command line interface** enabled, unless `OBSIDIAN_VAULT_PATH` is set. Creation needs configured `people_folder` and `person_template`. The default backend uses Templater; the explicit [headless creation backend](../../docs/DESIGN.md#creation) uses the verified note writer for static templates. Use static YAML frontmatter in templates; the caller sets the destination. See [configuration](../../docs/DESIGN.md#configuration) for setup.
 
 Mutating scripts validate before and after writes. Report errors verbatim and resolve validation or creation failures before further edits. Check the selected vault, paths, and permissions before treating unreadable configuration as missing. Do not assume every CLI failure means the CLI is disabled.
 

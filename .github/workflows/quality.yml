@@ -1,0 +1,71 @@
+name: Quality
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: quality-and-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
+        with:
+          version: "0.12.7"
+          python-version: "3.13"
+          enable-cache: true
+      - run: uv sync --locked --extra dev
+      - run: uv run --locked ruff check .
+      - run: uv run --locked pyright scripts tests tools
+      - run: uv run --locked pytest
+      - run: uv build
+
+  release:
+    needs: quality
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
+        with:
+          version: "0.12.7"
+          python-version: "3.13"
+          enable-cache: true
+      - name: Prepare release version
+        id: release
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          PREVIOUS_SHA: ${{ github.event.before }}
+        run: uv run --no-project --python 3.13 python tools/prepare_release.py --source "$SOURCE_SHA" --previous "$PREVIOUS_SHA"
+      - name: Verify release
+        if: steps.release.outputs.state == 'new'
+        run: |
+          uv lock
+          uv sync --locked --extra dev
+          uv run --locked ruff check .
+          uv run --locked pyright scripts tests tools
+          uv run --locked pytest
+          uv build
+      - name: Commit release version
+        if: steps.release.outputs.state == 'new'
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add pyproject.toml uv.lock .claude-plugin/plugin.json .claude-plugin/marketplace.json .codex-plugin/plugin.json
+          git commit --allow-empty -m "Release $RELEASE_VERSION" -m "Source-Commit: $SOURCE_SHA"
+          git push origin HEAD:main
