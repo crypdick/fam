@@ -25,64 +25,59 @@ prevents startup. Clients send `Authorization: Bearer <token>` to `/mcp`.
 
 ## Tools
 
-- `today`: read-only `{contacts: [...], actions: [...], triage: [...], events: [...]}` with optional
-  `on_date`,
-  `include_below_threshold`, `circle`, `include_snoozed`, nonnegative `limit`,
-  `location` (case-insensitive substring), `relationship_tag`, and
-  `interaction_preference` (case-insensitive whole-list membership). Filters
-  combine before limits. Contact cadence exclusions apply to `contacts`; manual
-  `next_action_at` dates for non-triage people appear in `actions`, and
-  `needs-triage` people appear in `triage`. Explicit event reminders also work
-  in passive/reference circles and with cadence muted.
-  Limits apply to each queue independently. The object replaces the former
-  contact-only array; consumers must read `contacts` for the previous rows.
-  Default date uses the server's local timezone. Missing circles fail validation;
-  repair explicitly through `update_person`.
-- `events`: read-only event reminder array with optional `on_date`, nonnegative
-  `days` (preview reminder windows; default 0), `include_snoozed`, and nonnegative
-  `limit`. See [important events](DESIGN.md#important-events) for dates,
-  recurrence, window boundaries, and JSON row fields.
+Tools expose shared FAM operations directly. Names below may have a `fam_`
+prefix at the gateway. See [design reference](DESIGN.md) for shared semantics;
+MCP-specific arguments and results follow.
+
+### Reads
+
+- `today`: `{contacts: [...], actions: [...], triage: [...], events: [...]}`.
+  Optional `on_date`, `include_below_threshold`, `include_snoozed`, `limit`,
+  `circle`, `location`, `relationship_tag`, and `interaction_preference`.
+  Limits cap each list independently; `include_below_threshold` affects contacts only.
+  See [contact queue](DESIGN.md#contact-queue).
+- `list_people`: person summaries with exact vault-relative paths. Optional
+  `circle`, `location`, `relationship_tag`, `interaction_preference`, `limit`,
+  `sort_by` (`name` default or `score`), and `on_date` for scores.
+  Includes snoozed people, inactive circles, and muted reminders.
+  See [listing people](DESIGN.md#listing-people) for filters and scoring.
+- `events`: event reminder array. Optional `on_date`, `days` (preview reminder
+  windows, default 0), `include_snoozed`, and `limit`.
+  See [important events](DESIGN.md#important-events) for recurrence and row fields.
+- `read_person`: original Markdown and summary for required `path`.
 - `validate`: `{ok, errors}` for configuration and all person notes; no writes.
-- `ensure_person`: required `person_name` selects one note to create if missing.
-  Optional `dry_run` previews creation without scanning mentions.
-- `tend`: bulk creation from unresolved `@` links.
-  Preview with `dry_run: true`. Both creation tools return `created`, `retried`,
-  `failed`, and `planned`; inspect `failed` even with partial successes.
-- `list_people`: names, circles, derived contact dates, metadata, and exact vault-relative
-  paths, sorted by name. Optional `circle`, `location`, `relationship_tag`,
-  `interaction_preference`, and nonnegative `limit` use the same filters as
-  `fam list`. Includes inactive circles, snoozed people, and muted reminders.
-  `sort_by` accepts `name` (default) or `score`; score sorting adds JSON-safe
-  scores and accepts `on_date` (default: server-local date). See
-  [listing people](DESIGN.md#listing-people) for scoring and tie order.
-- `read_person`: original Markdown and summary for an exact discovered `path`.
-- `log_contact`: required `path`, `on_date`, and single-line `description`.
-  Exact date/description retries do not duplicate bullets. Optional
-  `complete_action: true` clears pending action; default preserves it.
-  Returns person summary and `added`.
-- `update_person`: required `path` plus fields to set: `circle`,
-  `cadence_days_override`, `snooze_until`, `next_action_at`,
-  `periodic_contact_reminders`, `contact_channels_ordered_preference`,
-  `location`, `relationship_tags`, `interaction_preferences`, or `important_events`.
-  Event updates replace the complete list; read existing entries first. Each
-  event has `name`, `date` (`MM-DD` annual or `YYYY-MM-DD` one-off), and optional
-  `remind_days_before` (0–366, default 7).
-  Omitted/null arguments preserve fields. `clear` lists optional schema fields
-  to remove; setting and clearing the same field fails. Cannot clear circle.
-  Returns updated person summary.
 
-Person paths must come from the queue or list. Tools reject non-person notes,
-paths outside the vault, hidden notes, conflict copies, and symlink escapes.
-Writes validate the vault before and after changes and validate proposed fields
-before writing. See [person operations](DESIGN.md#person-operations) for semantics.
+Dates default to the server's local date; pass `on_date` for the user's time zone.
+Limits and preview days must be nonnegative. Read operations do not repair invalid
+notes; use `update_person` for a missing-circle repair.
 
-Tools call shared Python operations directly, with no shell subprocess for CLI
-commands. Default Templater creation needs Obsidian running; the explicit
-[headless creation backend](DESIGN.md#creation) supports static templates through
-the verified note writer. Other operations need only a configured filesystem
-root. Use existing file tools for free-form relationship
-context. Reviews, gardening orchestration, evidence assessment, and external
-intake remain agent workflows. See [validation and failures](DESIGN.md#validation-and-failures).
+### Writes
+
+- `ensure_person`: create one missing note for required `person_name`.
+  Optional `dry_run` previews without scanning mentions.
+- `tend`: bulk creation from unresolved `@` links. Preview with `dry_run: true`.
+  Both creation tools return `created`, `retried`, `failed`, and `planned`;
+  inspect `failed` even with partial successes. See [creation](DESIGN.md#creation)
+  for templates and backend requirements.
+- `log_contact`: required `path`, `on_date`, and nonempty single-line
+  `description`. Exact date/description retries deduplicate. Optional
+  `complete_action: true` clears the pending action; default preserves it.
+  Returns person summary and `added`. Caller must establish actual contact and date.
+- `update_person`: required `path` plus fields from the
+  [person schema](DESIGN.md#person-notes). Omitted/null arguments preserve fields;
+  `clear` lists optional schema fields to remove. Cannot clear `circle` or set
+  and clear the same field. Returns updated summary. `important_events` replaces
+  the whole list: read existing events and preserve unrelated entries.
+
+Use discovered person paths. Tools reject non-person notes, hidden notes,
+conflict copies, and paths or symlinks escaping the vault. Writes validate
+proposed fields and the vault before and after changes. Postflight failures do
+not roll back writes; see [validation and failures](DESIGN.md#validation-and-failures).
+
+Other than default Templater creation, operations need only a configured
+filesystem root; headless creation uses the explicit backend above. Use file
+tools for free-form context. Reviews, evidence assessment, and external intake
+remain agent workflows, not MCP operations.
 
 The dcloud deployment lives in
 [dcloud-stacks/fam-mcp](https://github.com/crypdick/dcloud-stacks/tree/main/fam-mcp).

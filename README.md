@@ -43,9 +43,8 @@ Keep schedules, source access, tracker paths, and personal exceptions in your ta
 
 ## Prerequisites
 
-- Obsidian app installed and running
-- Obsidian CLI enabled: **Settings > General > Command line interface**
-- Templater plugin for automatic person-note creation
+- Default setup: Obsidian running with **Settings > General > Command line interface** enabled; Templater for automatic creation
+- Headless setup: filesystem vault configuration and an explicit [creation backend](docs/DESIGN.md#creation) for static templates
 - Python 3.13+ with `uv` (the plugin's scripts run via `uv run`)
 
 ## License

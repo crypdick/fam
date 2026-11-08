@@ -5,26 +5,16 @@ description: Review relationships with the user and save their choices as next s
 
 # FAM relationship review
 
-Use [fam](../fam/SKILL.md) for note operations. For unattended preparation, use [fam-garden](../fam-garden/SKILL.md).
+Help the user choose whom to prioritize, keep casual, defer, or stop pursuing, without pressure to maintain everyone. Follow [fam](../fam/SKILL.md) for evidence, identity, note operations, and reminder rules. Use [fam-garden](../fam-garden/SKILL.md) for unattended preparation.
 
-## Prepare the review
+## Select and discuss
 
-Read current person notes and any configured tracker and review state. Get the due queue, excluding snoozed people and scores below the threshold unless requested. Read notes using their exact paths.
+Ground suggestions in current person notes, configured tracker and review history, and separately authorized sources. Flag uncertain identities or meeting context.
 
-Include unresolved prospects and older connections in the selection, even when the queue has due entries. `fam today` includes a separate `triage` list for `needs-triage` people and `actions` for one-off dates outside triage.
+Use due contacts alongside unresolved prospects and older connections, even when the due queue has entries. Respect snoozes, muted reminders, boundaries, deferrals, and bandwidth. Queue fallback suggestions may be below threshold; omit those unless requested. Vary selection using review history. Leave unanswered questions pending until their configured revisit time unless urgent.
 
-Use saved review history to vary the selection. Respect boundaries, deferrals, muted reminders, and the user's bandwidth. Leave unanswered questions pending until the configured revisit time unless there is an urgent reason to raise them.
+## Save outcomes
 
-## Work through choices
+Apply clear decisions, agreed plans, promised follow-ups, and supported important dates without extra approval. Preserve concrete context and set action dates supported by the plan; leave unclear circle intent in `needs-triage`. Suggested outreach is not completed contact and does not authorize sending messages or invitations.
 
-Use relevant notes and separately authorized sources to ground suggestions. Flag uncertain identities or meeting context. Help the user decide whom to prioritize, keep casual, defer, or stop pursuing, without pressure to maintain everyone.
-
-Assume Ricardo wants to make plans unless he explicitly says he does not and that boundary is recorded in the person note. Add clear agreed plans, promised follow-ups, and supported important dates directly to FAM without asking permission. Set a useful action date and preserve concrete context. Never send messages or invitations. Use `needs-triage` when circle intent remains unclear; change to a substantive circle only when user choice or evidence supports it. Preserve person-specific overrides and distinguish one-time action dates from recurring cadence.
-
-## Save decisions
-
-Use the shared fam contact-logging and field-update operations from [fam](../fam/SKILL.md) for mechanical writes. Use file edits for free-form relationship context.
-
-Save explicit answers and unresolved questions in the configured tracker or relationship notes. Keep contact history and reminder fields in person notes and link to them from the tracker.
-
-In configured review state, record whom you surfaced and what the user answered or deferred. Suggested outreach remains uncompleted; log only reported or evidenced interactions. Summarize the updates saved.
+Keep contact history and reminder fields in person notes; link from any tracker. Save answers and unresolved questions in configured tracker or notes. In configured review state, record whom the user saw and what they answered or deferred. Summarize saved updates.

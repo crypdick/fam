@@ -12,16 +12,9 @@ uv build
 
 Tests use synthetic notes in `tests/fixtures/vault/`. Mutating tests copy the fixture through `vault_root`; never edit the source fixture or your personal vault. Obsidian responses are mocked. MCP tests cover tool calls and a local HTTP server with authentication.
 
-Use one console script with subcommands:
-
-```shell
-uv run fam today --json
-uv run fam list
-uv run fam tend --dry-run
-uv run fam validate
-```
-
-Commands use the selected Obsidian vault, not the working directory. See [vault selection](DESIGN.md#vault-selection) for environment overrides.
+The `fam` CLI uses the selected vault, not the working directory. See
+[vault selection](DESIGN.md#vault-selection) for environment overrides and
+[usage](../README.md#usage) for commands.
 
 ## Plugin releases
 
