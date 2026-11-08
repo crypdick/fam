@@ -43,7 +43,7 @@ people_folder: People
 person_template: Templates/person_template.md
 ```
 
-Copy the [person template](../examples/person_template.md) to your template folder and install Templater. Use static YAML frontmatter; `processFrontMatter` inside a Templater block can lose fields during creation. The caller sets the destination from `people_folder`; do not move the file in the template.
+Copy the [person template](../examples/person_template.md) to your template folder. See [creation](#creation) for backend requirements. Use static YAML frontmatter; `processFrontMatter` inside a Templater block can lose fields. The caller sets the destination from `people_folder`; do not move the file in the template.
 
 ### Vault selection
 
@@ -146,8 +146,8 @@ and circles without a cadence have score `-inf` and sort last; muted reminders
 retain their calculated scores. Never-contacted people with an active cadence
 and no action date have score `inf`. JSON uses strings `"inf"` and `"-inf"`.
 Use `--on-date YYYY-MM-DD` with `--sort score` to select the scoring date;
-the default is the local date. Filters and sorting apply before `--limit`.
-Score sorting validates the vault and configuration before calculating scores.
+the default is the local date. Score sorting validates the vault and configuration
+before calculating scores.
 
 `fam list --today` shows the ranked contact queue, one-off actions, triage list,
 and important event reminders.
@@ -158,8 +158,6 @@ Text output shows separate sections. JSON and MCP `today` return
 except `needs-triage`. The `triage` list contains `needs-triage` people, whether or
 not they have an action date. Both lists sort by action date then name and
 return up to 10 rows by default. The `limit` option caps each list independently.
-Existing consumers that used the former contact-only array should read
-`contacts` for those rows.
 `fam list` without `--today` still returns a person array.
 Queue options `--all` and `--include-snoozed` require this mode. The contact queue
 always sorts by score; `--sort name` is not supported with `--today`.
@@ -193,32 +191,20 @@ filters still apply. It sorts by descending score, then oldest contact date.
 Table output includes days
 since contact and days overdue. Missing dates appear as `-`.
 
-Use these options to change the output:
+Queue-specific options:
 
-- `--on-date YYYY-MM-DD` selects the scoring date; default is the local date.
-- `--all` includes scores below the threshold. Circle and reminder exclusions
-  still apply.
-- `--include-snoozed` evaluates snoozed people as if the snooze were absent.
-  Threshold and other exclusions still apply; JSON rows retain `snoozed: true`.
-- `--circle NAME` filters to a circle.
-- `--location TEXT` matches a location substring, ignoring case.
-- `--tag TAG` matches a whole relationship tag, ignoring case.
-- `--interaction VALUE` matches a whole interaction preference, ignoring case.
-- `--limit N` returns at most N rows.
-- `--json` returns structured rows. Infinite scores use the string `"inf"`.
+- `--on-date YYYY-MM-DD`: scoring date; default is the local date.
+- `--all`: include below-threshold scores without changing cadence or reminder exclusions.
+- `--include-snoozed`: evaluate as if snooze were absent; JSON retains `snoozed: true`.
 
-Filters combine as an intersection and apply before `--limit`. Missing metadata
-never matches a requested filter. Filtered queues still exclude inactive circles,
-muted reminders without action dates, and (unless requested) snoozes, even with
-`--all`. An empty queue does not prove that no matching person exists. Use
-`fam list` and inspect notes when reviewing people outside the queue.
+Filters, limits, and `--json` work as described under [listing people](#listing-people).
+An empty queue does not prove no matching person exists; use `fam list` and inspect
+notes outside the queue.
 JSON contact rows and person summaries include the three metadata fields.
 Person summaries also include the normalized `important_events` list.
 
-When no eligible people remain, table output explains the empty result and
-suggests checking filters and reminder settings. The `contacts` array remains
-`[]` when empty.
-`--limit 0` returns no rows in either queue.
+Empty contact output explains exclusions; JSON uses `contacts: []`.
+`--limit 0` returns no rows.
 
 ## Important events
 
@@ -251,8 +237,7 @@ fam person update "People/@Jane Doe.md" --clear important_events
 
 `--important-events` replaces the complete list. Read existing events before
 updating so unrelated dates survive; use `[]` or `--clear important_events`
-to remove all events. Shared updates validate before writing and preserve
-unrelated frontmatter, contact history, and free-form context.
+to remove all events. See [field updates](#field-updates) for shared write guarantees.
 
 `fam events` returns each event's next occurrence when its reminder window
 has started and the event has not passed. The window includes both the
@@ -276,8 +261,8 @@ events never count as contact evidence. Remove a one-off event to cancel it.
 `fam today` includes the same current event queue separately from contact
 scores, one-off actions, and triage. Metadata and circle filters apply to all
 lists; `--limit N` caps each independently. `--all` affects contact scores only.
-Events are shown even when no contacts are eligible. No notification delivery or
-calendar synchronization is built in; schedulers and agents consume these reads.
+Events appear even when no contacts are eligible. Reminders are read results,
+not delivered notifications or calendar synchronization.
 
 ## Person operations
 
@@ -352,10 +337,8 @@ Supported flags are `--circle`, `--cadence-days-override`, `--snooze-until`,
 `--contact-channels-ordered-preference signal email`, `--location TEXT`,
 `--relationship-tags friend family`, `--interaction-preferences in_person call`,
 and `--important-events JSON`.
-Location must be a string; tag and preference fields must be lists of strings.
-Populate them only from supported context or explicit user choices.
-Reminder dates use `YYYY-MM-DD`; annual event dates use `MM-DD`.
-Cadence must be a positive integer.
+See [person notes](#person-notes) and [important events](#important-events) for
+field types. Populate metadata only from supported context or explicit choices.
 
 Omitted fields stay unchanged. `--clear FIELD` is repeatable and removes an
 optional field using its schema name (for example `cadence_days_override`).
@@ -364,10 +347,9 @@ preferences restores an empty list. Circle is required and cannot be cleared.
 Setting and clearing the same field is an error. At least one change is required.
 
 Updates validate proposed values and configured circle before writing. Circle
-changes preserve cadence overrides. Both write operations preserve unrelated
-frontmatter values and free-form content; YAML formatting can be normalized.
-Free-form context edits still use file tools. Relationship reviews, gardening
-orchestration, intake connectors, and message sending are not CLI operations.
+changes preserve cadence overrides. Writes preserve unrelated frontmatter and
+free-form content; YAML formatting can be normalized. Edit free-form context
+with file tools; reviews and intake remain agent workflows.
 
 ## Validation and failures
 
