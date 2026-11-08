@@ -256,3 +256,25 @@ def test_malformed_release_metadata_fails_without_partial_writes(
     assert result.returncode != 0
     assert error in result.stderr
     assert git(release_repo, "status", "--porcelain") == ""
+
+
+@pytest.mark.parametrize(
+    "manifest",
+    [".claude-plugin/plugin.json", ".codex-plugin/plugin.json", ".claude-plugin/marketplace.json"],
+)
+def test_manifest_identity_fails_before_writing(release_repo, manifest):
+    previous = commit(release_repo, "base")
+    path = release_repo / manifest
+    value = json.loads(path.read_text())
+    if "marketplace" in manifest:
+        value["plugins"].append({"name": "fam", "version": "1.5.5"})
+    else:
+        value["name"] = "wrong-plugin"
+    path.write_text(json.dumps(value))
+    source = commit(release_repo, "invalid identity")
+
+    result = run_release(release_repo, source, previous)
+
+    assert result.returncode != 0
+    assert "fam" in result.stderr
+    assert git(release_repo, "status", "--porcelain") == ""
