@@ -84,3 +84,31 @@ def test_guard_reports_postflight_errors(vault_root: Path):
     with pytest.raises(validate.ValidationError, match="postflight failed"):
         with validate.guard(vault_root):
             (vault_root / "People" / "@New.md").write_text("---\ncircle: nonsense\n---\n")
+
+
+def test_scoped_guard_checks_target_before_and_after_writing(vault_root: Path):
+    target = vault_root / "People/@Alice.md"
+    other = vault_root / "People/@Invalid.md"
+    other.write_text("---\ncircle: nonsense\n---\n")
+    with validate.guard(vault_root, targets=[target]):
+        pass
+    assert not validate.preflight(vault_root).ok
+    with pytest.raises(validate.ValidationError, match="postflight failed"):
+        with validate.guard(vault_root, targets=[target]):
+            target.write_text("---\ncircle: nonsense\n---\n")
+    with pytest.raises(validate.ValidationError, match="preflight failed"):
+        with validate.guard(vault_root, targets=[target]):
+            pytest.fail("invalid target must block writes")
+
+
+def test_validation_rejects_duplicate_contact_sections(vault_root: Path):
+    path = vault_root / "People/@Dan.md"
+    path.write_text(
+        "---\ncircle: orbit\n---\n## Logged contacts\n- 2020-01-01 — older\n"
+        "## Logged contacts\n- 2026-11-01 — newer\n"
+    )
+    report = validate.preflight(vault_root)
+    assert not report.ok
+    assert any(
+        "@Dan.md" in error and "multiple Logged contacts" in error for error in report.errors
+    )

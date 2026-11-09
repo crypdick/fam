@@ -112,7 +112,7 @@ def test_create_from_template_raises_on_case_distinct_sibling(
                 poll_timeout_s=0.05,
                 poll_interval_s=0.01,
             )
-    assert write_count == 1, "must abort before retrying; got duplicate writes"
+    assert write_count == 0, "must reject existing case-distinct parent before invoking backend"
 
 
 @patch("scripts.lib.vault.subprocess.run")
@@ -205,7 +205,7 @@ def test_create_from_template_returns_one_when_file_appears_immediately(
     """First-attempt success: file already on disk when poll runs."""
     target = tmp_path / "People" / "@X.md"
     target.parent.mkdir()
-    target.write_text("")  # simulate Templater wrote it before poll
+    mock_call.side_effect = lambda args: target.write_text("created")
     attempts = vault.create_from_template(
         template=Path("T.md"), file=Path("People/@X.md"), vault_root=tmp_path
     )
@@ -258,3 +258,105 @@ def test_create_from_template_raises_after_max_attempts(
             poll_interval_s=0.025,
         )
     assert mock_call.call_count == 2
+
+
+@pytest.mark.parametrize("backend", ["templater", "obsidian-knowledge"])
+@pytest.mark.parametrize(
+    "target",
+    [
+        ".hidden/@X.md",
+        "_sources/@X.md",
+        "../@X.md",
+        "ordinary.md",
+        "@X.sync-conflict-20260523-225211-I3CHISF.md",
+    ],
+)
+def test_creation_rejects_nonlive_paths_before_backend(tmp_path, monkeypatch, backend, target):
+    monkeypatch.setenv("FAM_CREATION_BACKEND", backend)
+    with patch("scripts.lib.vault.subprocess.run") as run:
+        with pytest.raises(vault.ObsidianCliError):
+            vault.create_from_template(
+                template=Path("T.md"), file=Path(target), vault_root=tmp_path
+            )
+    run.assert_not_called()
+
+
+@pytest.mark.parametrize("backend", ["templater", "obsidian-knowledge"])
+def test_creation_rejects_symlink_escape(tmp_path, monkeypatch, backend):
+    root = tmp_path / "vault"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (root / "People").symlink_to(outside, target_is_directory=True)
+    monkeypatch.setenv("FAM_CREATION_BACKEND", backend)
+    with patch("scripts.lib.vault.subprocess.run") as run:
+        with pytest.raises(vault.ObsidianCliError, match="inside"):
+            vault.create_from_template(
+                template=Path("T.md"), file=Path("People/@X.md"), vault_root=root
+            )
+    run.assert_not_called()
+    assert not list(outside.iterdir())
+
+
+@pytest.mark.parametrize("backend", ["templater", "obsidian-knowledge"])
+def test_creation_refuses_existing_target_before_backend(tmp_path, monkeypatch, backend):
+    target = tmp_path / "@X.md"
+    target.write_text("user content")
+    monkeypatch.setenv("FAM_CREATION_BACKEND", backend)
+    with patch("scripts.lib.vault.subprocess.run") as run:
+        with pytest.raises(vault.ObsidianCliError, match="already exists"):
+            vault.create_from_template(
+                template=Path("T.md"), file=Path("@X.md"), vault_root=tmp_path
+            )
+    run.assert_not_called()
+    assert target.read_text() == "user content"
+
+
+@pytest.mark.parametrize("backend", ["templater", "obsidian-knowledge"])
+@pytest.mark.parametrize("destination", [".hidden", "ActualPeople"])
+def test_creation_rejects_internal_directory_symlink(tmp_path, monkeypatch, backend, destination):
+    actual = tmp_path / destination
+    actual.mkdir()
+    (tmp_path / "People").symlink_to(actual, target_is_directory=True)
+    monkeypatch.setenv("FAM_CREATION_BACKEND", backend)
+    with patch("scripts.lib.vault.subprocess.run") as run:
+        with pytest.raises(vault.ObsidianCliError, match="symlink directories"):
+            vault.create_from_template(
+                template=Path("T.md"), file=Path("People/@X.md"), vault_root=tmp_path
+            )
+    run.assert_not_called()
+    assert not list(actual.iterdir())
+
+
+def test_case_resolution_rejects_ambiguous_component(tmp_path):
+    (tmp_path / "People").mkdir()
+    (tmp_path / "people").mkdir()
+    with pytest.raises(vault.ObsidianCliError, match="ambiguous case-distinct"):
+        vault.resolve_case_insensitive(tmp_path / "People/@X.md", tmp_path)
+
+
+def test_desktop_error_after_materialization_does_not_retry(tmp_path):
+    target = tmp_path / "@X.md"
+
+    def create_then_error(args):
+        target.write_text("created")
+        raise vault.ObsidianCliError("failed after writing")
+
+    with patch("scripts.lib.vault.call", side_effect=create_then_error) as call:
+        assert (
+            vault.create_from_template(
+                template=Path("T.md"), file=Path("@X.md"), vault_root=tmp_path
+            )
+            == 1
+        )
+    call.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "error", [FileNotFoundError("obsidian"), subprocess.TimeoutExpired("obsidian", 30)]
+)
+def test_call_bounds_and_normalizes_process_failures(error):
+    with patch("scripts.lib.vault.subprocess.run", side_effect=error) as run:
+        with pytest.raises(vault.ObsidianCliError, match="obsidian call failed"):
+            vault.call(["version"])
+    assert run.call_args.kwargs["timeout"] == 30

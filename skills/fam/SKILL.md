@@ -26,7 +26,7 @@ From the repository, run `uv run fam …`; elsewhere use `uv run --project "PLUG
 
 Use command help or [design reference](../../docs/DESIGN.md) for flags, schemas, scoring, and output details. Read [creation setup](../../docs/DESIGN.md#creation) when configuring templates or choosing Templater versus headless creation. Templates need static YAML frontmatter; the caller controls destination.
 
-Writes validate before and after changes. Surface errors verbatim and resolve failures before continuing affected writes; inspect partial creation failures. Check vault selection, paths, and permissions before treating unreadable configuration as missing or assuming the CLI is disabled. Postflight failure does not roll back writes.
+Writes validate configuration and affected notes before and after changes; unrelated invalid notes do not block local repairs. Use `fam validate` for whole-vault health. Surface errors verbatim and resolve failures before continuing affected writes; inspect partial creation failures. Check vault selection, paths, and permissions before treating unreadable configuration as missing or assuming the CLI is disabled. Postflight failure does not roll back writes.
 
 ## Contact history and context
 
@@ -52,7 +52,7 @@ Keep one-off actions separate from recurring cadence:
 
 - Circle changes preserve `cadence_days_override`.
 - `snooze_until` hides reminders until its date. `periodic_contact_reminders: false` mutes cadence, not explicit one-off actions or events.
-- Keep overdue `next_action_at` dates until completed or dismissed. Clear the date when logging the intended contact. Triage people appear in `triage`; other explicit actions appear in `actions`, independent of cadence thresholds.
+- Keep overdue `next_action_at` dates until completed or dismissed. Clear the date when logging the intended contact. While set, the action suppresses recurring cadence. Triage people appear in `triage`; other explicit actions appear in `actions`, independent of cadence thresholds.
 
 For scheduled MCP queues, pass `on_date` in the user's time zone; the server defaults to its own local date.
 

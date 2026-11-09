@@ -11,6 +11,7 @@ from scripts.lib.person import Person
 
 _HEADING_RE = re.compile(r"^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$")
 _FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+_BULLET_CANDIDATE_RE = re.compile(r"^\s*[-*+](?:\s|$)")
 _BULLET_RE = re.compile(r"^\s*-\s+(\d{4}-\d{2}-\d{2})\s*[—–-]\s*(.*?)\s*$")
 
 
@@ -35,31 +36,9 @@ def markdown_lines(body: str) -> Iterator[tuple[int, str]]:
             yield index, line
 
 
-def section_lines(body: str, heading: str) -> tuple[int, int]:
-    """Return content line bounds for a real Markdown heading, or (-1, -1)."""
-    hashes, title = heading.split(" ", 1)
-    start = -1
-    for index, line in markdown_lines(body):
-        match = _HEADING_RE.match(line)
-        if not match:
-            continue
-        if start != -1 and len(match[1]) <= len(hashes):
-            return start, index
-        if match[1] == hashes and match[2] == title:
-            start = index + 1
-    return (start, len(body.splitlines())) if start != -1 else (-1, -1)
-
-
-def _contact_lines(body: str) -> Iterator[tuple[int, str]]:
-    start, end = section_lines(body, "## Logged contacts")
-    for index, line in markdown_lines(body):
-        if start <= index < end:
-            yield index, line
-
-
 def _parse_bullet(line: str) -> LoggedContact | None:
     match = _BULLET_RE.match(line)
-    if match:
+    if match and match[2]:
         try:
             return LoggedContact(date=date.fromisoformat(match[1]), text=match[2])
         except ValueError:
@@ -67,16 +46,50 @@ def _parse_bullet(line: str) -> LoggedContact | None:
     return None
 
 
+@dataclass
+class _ContactSection:
+    start: int
+    end: int
+    contacts: list[LoggedContact]
+    errors: list[str]
+
+
+def _contact_section(body: str) -> _ContactSection:
+    """Scan the one real contact section; ambiguity must never hide history."""
+    section = _ContactSection(-1, len(body.splitlines()), [], [])
+    inside = False
+    for index, line in markdown_lines(body):
+        heading = _HEADING_RE.match(line)
+        if heading:
+            if inside and len(heading[1]) <= 2:
+                section.end = index
+                inside = False
+            if heading[1] == "##" and heading[2] == "Logged contacts":
+                if section.start != -1:
+                    raise ValueError("multiple Logged contacts sections; resolve before logging")
+                section.start = index + 1
+                inside = True
+            continue
+        if inside:
+            contact = _parse_bullet(line)
+            if contact is not None:
+                section.contacts.append(contact)
+            elif _BULLET_CANDIDATE_RE.match(line):
+                section.errors.append(
+                    f"malformed logged contact at body line {index + 1}: {line.strip()}"
+                )
+    return section
+
+
 def parse_logged_contacts(body: str) -> list[LoggedContact]:
-    return [contact for _, line in _contact_lines(body) if (contact := _parse_bullet(line))]
+    return _contact_section(body).contacts
 
 
 def logged_contact_errors(body: str) -> list[str]:
-    return [
-        f"malformed logged contact at body line {index + 1}: {line.strip()}"
-        for index, line in _contact_lines(body)
-        if line.lstrip().startswith("- ") and _parse_bullet(line) is None
-    ]
+    try:
+        return _contact_section(body).errors
+    except ValueError as exc:
+        return [str(exc)]
 
 
 def last_contacted(person: Person) -> date | None:
@@ -86,18 +99,17 @@ def last_contacted(person: Person) -> date | None:
 
 def append_contact(body: str, on_date: date, description: str) -> str:
     """Append to one real contact section, deduplicating exact date/text retries."""
-    headings = [
-        match
-        for _, line in markdown_lines(body)
-        if (match := _HEADING_RE.match(line)) and match[1] == "##" and match[2] == "Logged contacts"
-    ]
-    if len(headings) > 1:
-        raise ValueError("multiple Logged contacts sections; resolve before logging")
+    if not description.strip() or any(char in description for char in "\r\n\x00"):
+        raise ValueError("description must be a nonempty single line")
+    description = description.strip()
+    section = _contact_section(body)
+    if section.errors:
+        raise ValueError("\n".join(section.errors))
     contact = LoggedContact(on_date, description)
-    if contact in parse_logged_contacts(body):
+    if contact in section.contacts:
         return body
     bullet = f"- {on_date.isoformat()} — {description}"
-    start, end = section_lines(body, "## Logged contacts")
+    start, end = section.start, section.end
     if start == -1:
         result = body.rstrip() + "\n\n## Logged contacts\n" + bullet + "\n"
     else:

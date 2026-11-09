@@ -6,12 +6,11 @@ import math
 from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, get_args
 
 from . import config, interactions, person, score, validate, vault
 
-EDITABLE_FIELDS = (
-    "circle",
+OptionalField = Literal[
     "cadence_days_override",
     "snooze_until",
     "next_action_at",
@@ -21,8 +20,9 @@ EDITABLE_FIELDS = (
     "relationship_tags",
     "interaction_preferences",
     "important_events",
-)
-OPTIONAL_FIELDS = EDITABLE_FIELDS[1:]
+]
+OPTIONAL_FIELDS: tuple[str, ...] = get_args(OptionalField)
+EDITABLE_FIELDS = ("circle", *OPTIONAL_FIELDS)
 
 
 def resolve_path(root: Path, path: str) -> Path:
@@ -51,6 +51,7 @@ def _summary(loaded: person.Person, root: Path) -> dict[str, Any]:
 def matching_people(
     root: Path,
     *,
+    loaded: Sequence[person.Person] | None = None,
     circle: str | None = None,
     location: str | None = None,
     relationship_tag: str | None = None,
@@ -60,8 +61,8 @@ def matching_people(
     if circle is not None and circle not in person.CIRCLES:
         raise ValueError("unknown circle")
     matches = []
-    for path in person.discover(root):
-        p = person.load(path)
+    population = loaded if loaded is not None else (person.load(p) for p in person.discover(root))
+    for p in population:
         if circle is not None and p.circle != circle:
             continue
         if location is not None and (
@@ -98,13 +99,12 @@ def list_people(
         raise ValueError("on_date requires sorting by score")
     root = vault.get_vault_root()
     cfg = None
+    population = None
     if sort_by == "score":
-        report = validate.preflight(root)
-        if not report.ok:
-            raise validate.ValidationError("preflight failed:\n  " + "\n  ".join(report.errors))
-        cfg = config.load(root)
+        cfg, population = validate.load_vault(root)
     loaded = matching_people(
         root,
+        loaded=population,
         circle=circle,
         location=location,
         relationship_tag=relationship_tag,
@@ -149,13 +149,13 @@ def update_person(
         raise ValueError("use clear to remove fields; changes must not contain null")
     root = vault.get_vault_root()
     target = resolve_path(root, path)
-    # Only this target's missing circle may be repaired; all other errors block writes.
+    # Only this target's missing circle may be repaired; its other errors block writes.
     repair = target if "circle" in changes else None
     loaded = person.with_updates(target, {**changes, **dict.fromkeys(clear)})
     cfg = config.load(root)
     if loaded.circle not in cfg.circles:
         raise ValueError(f"circle {loaded.circle!r} is not configured in {cfg.path}")
-    with validate.guard(root, allow_missing_circle=repair):
+    with validate.guard(root, targets=[target], allow_missing_circle=repair):
         person.write(loaded)
     return _summary(loaded, root)
 
@@ -170,7 +170,7 @@ def log_contact(
     description = description.strip()
     root = vault.get_vault_root()
     target = resolve_path(root, path)
-    with validate.guard(root):
+    with validate.guard(root, targets=[target]):
         loaded = person.load(target)
         body = interactions.append_contact(loaded.body, on_date, description)
         added = body != loaded.body

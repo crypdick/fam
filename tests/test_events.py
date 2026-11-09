@@ -125,14 +125,15 @@ def test_year_boundary_one_off_expiry_and_snoozes(capsys):
     assert [r["event"] for r in json.loads(capsys.readouterr().out)] == ["Anniversary"]
 
 
-def test_event_validation_blocks_other_writes(vault_root: Path):
+def test_invalid_events_block_queue_but_not_unrelated_person_write(vault_root: Path):
     path = vault_root / "People/@Carol.md"
     path.write_text("---\ncircle: passive\nimportant_events: nope\n---\n")
-    before = (vault_root / "People/@Alice.md").read_bytes()
+    before = path.read_bytes()
     assert main(["validate"]) == 1
-    assert main(["person", "update", "People/@Alice.md", "--circle", "inner"]) == 1
+    assert main(["person", "update", "People/@Alice.md", "--circle", "inner"]) == 0
     assert main(["events", "--json"]) == 1
-    assert (vault_root / "People/@Alice.md").read_bytes() == before
+    assert person.load(vault_root / "People/@Alice.md").circle == "inner"
+    assert path.read_bytes() == before
 
 
 def test_mcp_events_updates_today_and_clear():

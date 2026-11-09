@@ -9,6 +9,11 @@ import pytest
 from scripts import cli
 
 
+def _create_valid(*, template, file, vault_root):
+    (vault_root / file).write_text("---\ncircle: needs-triage\n---\n\n## Logged contacts\n")
+    return 1
+
+
 @patch("scripts.lib.vault.get_vault_root")
 @patch("scripts.lib.vault.call", return_value="Notes/2026-10-01-mention.md\n")
 def test_tend_preserves_existing_notes_and_contact_dates(
@@ -90,7 +95,7 @@ def test_scan_at_wikilinks_ignores_code_examples_and_placeholders(vault_root: Pa
 
 
 @patch("scripts.lib.vault.get_vault_root")
-@patch("scripts.lib.vault.create_from_template", return_value=1)
+@patch("scripts.lib.vault.create_from_template", side_effect=_create_valid)
 def test_tend_creates_stub_for_unresolved_at_link(mock_create, mock_root, vault_root: Path) -> None:
     """Gardener invokes Templater for each unresolved `[[@Name]]` mention."""
     mock_root.return_value = vault_root
@@ -109,7 +114,7 @@ def test_tend_creates_stub_for_unresolved_at_link(mock_create, mock_root, vault_
 
 
 @patch("scripts.lib.vault.get_vault_root")
-@patch("scripts.lib.vault.create_from_template", return_value=2)
+@patch("scripts.lib.vault.create_from_template", side_effect=lambda **kw: _create_valid(**kw) + 1)
 def test_tend_records_retry_when_create_needed_extra_attempt(
     _create, mock_root, vault_root: Path
 ) -> None:
@@ -137,7 +142,7 @@ def test_tend_records_failed_stub_when_retries_exhausted(mock_root, vault_root: 
     def _flaky(*, template, file, vault_root):
         if "Hard Fail" in file.name:
             raise vault_mod.ObsidianCliError("dropped")
-        return 1
+        return _create_valid(template=template, file=file, vault_root=vault_root)
 
     with patch("scripts.lib.vault.create_from_template", side_effect=_flaky):
         stubs = fam_tend.tend()
@@ -228,29 +233,27 @@ def test_scan_at_wikilinks_skips_syncthing_conflict_files(vault_root: Path) -> N
 
 @patch("scripts.lib.vault.get_vault_root")
 @patch("scripts.lib.vault.create_from_template")
-def test_tend_aborts_before_writes_on_invalid_person(
-    mock_create, mock_root, vault_root: Path
-) -> None:
+def test_tend_ignores_unrelated_invalid_person(mock_create, mock_root, vault_root: Path) -> None:
     mock_root.return_value = vault_root
     (vault_root / "People" / "@Broken.md").write_text("---\ncircle: nonsense\n---\n")
     before = {p: p.read_bytes() for p in vault_root.rglob("*.md")}
     from scripts import fam_tend
-    from scripts.lib import validate
 
-    with pytest.raises(validate.ValidationError, match="preflight failed"):
-        fam_tend.tend()
+    assert not fam_tend.tend().failed
 
     assert {p: p.read_bytes() for p in vault_root.rglob("*.md")} == before
     mock_create.assert_not_called()
 
 
 @patch("scripts.lib.vault.get_vault_root")
-def test_tend_main_reports_validation_failure(mock_root, vault_root: Path, capsys) -> None:
+def test_tend_main_ignores_unrelated_validation_failure(
+    mock_root, vault_root: Path, capsys
+) -> None:
     mock_root.return_value = vault_root
     (vault_root / "People" / "@Broken.md").write_text("---\ncircle: nonsense\n---\n")
 
-    assert cli.main(["tend"]) == 1
-    assert "preflight failed" in capsys.readouterr().err
+    assert cli.main(["tend"]) == 0
+    assert not capsys.readouterr().err
 
 
 @patch("scripts.lib.vault.get_vault_root")
@@ -258,15 +261,15 @@ def test_tend_rejects_invalid_materialized_stub(mock_root, vault_root: Path) -> 
     mock_root.return_value = vault_root
     (vault_root / "Notes" / "new.md").write_text("[[@New Person]]\n")
     from scripts import fam_tend
-    from scripts.lib import validate
 
     def create_invalid(*, template, file, vault_root):
         (vault_root / file).write_text("---\ncircle: nonsense\n---\n")
         return 1
 
     with patch("scripts.lib.vault.create_from_template", side_effect=create_invalid):
-        with pytest.raises(validate.ValidationError, match="unknown circle"):
-            fam_tend.tend()
+        result = fam_tend.tend()
+    assert not result.created
+    assert "unknown circle" in result.failed[0]
 
 
 @patch("scripts.lib.vault.get_vault_root")
@@ -324,3 +327,48 @@ def test_created_stub_is_not_recreated(mock_create, mock_root, vault_root: Path)
     assert fam_tend.tend().created == ["@New Person"]
     assert fam_tend.tend().created == []
     mock_create.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "content, expected",
+    [
+        ("---\ncircle: nonsense\n---\n", "unknown circle"),
+        ("---\ncircle: needs-triage\n---\n## Logged contacts\n- not a contact\n", "malformed"),
+        ("---\ncircle: close\n---\n", "not configured"),
+    ],
+)
+def test_tend_reports_invalid_materialization_as_partial_failure(
+    vault_root, monkeypatch, content, expected
+):
+    from scripts import fam_tend
+
+    monkeypatch.setenv("OBSIDIAN_VAULT_PATH", str(vault_root))
+    config_path = vault_root / "fam-circles.md"
+    config_path.write_text(
+        "\n".join(
+            line for line in config_path.read_text().splitlines() if not line.startswith("  close:")
+        )
+    )
+    (vault_root / "Notes/new.md").write_text("[[@Bad]] [[@Good]]")
+
+    def create(*, template, file, vault_root):
+        (vault_root / file).write_text(
+            content if file.stem == "@Bad" else "---\ncircle: passive\n---\n"
+        )
+        return 1
+
+    with patch("scripts.lib.vault.create_from_template", side_effect=create):
+        result = fam_tend.tend()
+    assert result.created == ["@Good"]
+    assert len(result.failed) == 1
+    assert expected in result.failed[0]
+
+
+def test_tend_does_not_report_missing_materialization_as_created(vault_root, monkeypatch):
+    from scripts import fam_tend
+
+    monkeypatch.setenv("OBSIDIAN_VAULT_PATH", str(vault_root))
+    with patch("scripts.lib.vault.create_from_template", return_value=1):
+        result = fam_tend.tend(person_name="Missing")
+    assert not result.created
+    assert "did not materialize" in result.failed[0]

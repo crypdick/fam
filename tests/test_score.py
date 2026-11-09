@@ -97,3 +97,17 @@ def test_days_overdue_helper(cfg: config.Config) -> None:
     p = _person(circle="close")
     last = TODAY - timedelta(days=45)
     assert score.days_overdue(p, last=last, today=TODAY, config=cfg) == 15
+
+
+@pytest.mark.parametrize("last,cadence", [(date.max, 30), (TODAY, 10**100)])
+def test_cadence_arithmetic_does_not_require_representable_due_date(cfg, last, cadence):
+    p = _person(cadence_days_override=cadence)
+    expected_days = (TODAY - last).days - cadence
+    assert score.days_overdue(p, last=last, today=TODAY, config=cfg) == expected_days
+    assert score.score(p, last=last, today=TODAY, config=cfg) == expected_days / cadence
+
+
+def test_manual_action_still_overrides_unrepresentable_cadence_anchor(cfg):
+    p = _person(cadence_days_override=10**100, next_action_at=TODAY)
+    assert score.days_overdue(p, last=date.max, today=TODAY, config=cfg) == 0
+    assert score.score(p, last=date.max, today=TODAY, config=cfg) == 0

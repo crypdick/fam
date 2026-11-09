@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json as _json
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
@@ -21,6 +22,7 @@ class Row:
     days: int | None
     days_overdue: int | None
     score: float
+    meets_threshold: bool
     path: Path
     snoozed: bool
     location: str | None
@@ -49,28 +51,45 @@ def compute_rows(
     relationship_tag: str | None = None,
     interaction_preference: str | None = None,
 ) -> list[Row]:
-    vault_root = vault.get_vault_root()
-    if limit is not None and (type(limit) is not int or limit < 0):
-        raise ValueError("limit must be a nonnegative integer")
-    if circle is not None and circle not in person.CIRCLES:
-        raise ValueError("unknown circle")
-    report = validate.preflight(vault_root)
-    if not report.ok:
-        raise validate.ValidationError("preflight failed:\n  " + "\n  ".join(report.errors))
-    cfg = config_mod.load(vault_root)
-    rows: list[Row] = []
-    above_threshold: list[Row] = []
-    for p in people.matching_people(
-        vault_root,
+    root = vault.get_vault_root()
+    cfg, loaded = validate.load_vault(root)
+    matches = people.matching_people(
+        root,
+        loaded=loaded,
         circle=circle,
         location=location,
         relationship_tag=relationship_tag,
         interaction_preference=interaction_preference,
-    ):
-        if not p.periodic_contact_reminders and p.next_action_at is None:
+    )
+    return _contact_rows(
+        root,
+        cfg,
+        matches,
+        today=today,
+        include_below_threshold=include_below_threshold,
+        include_snoozed=include_snoozed,
+        limit=limit,
+    )
+
+
+def _contact_rows(
+    vault_root: Path,
+    cfg: config_mod.Config,
+    loaded: Sequence[person.Person],
+    *,
+    today: date,
+    include_below_threshold: bool,
+    include_snoozed: bool = False,
+    limit: int | None = None,
+) -> list[Row]:
+    if limit is not None and (type(limit) is not int or limit < 0):
+        raise ValueError("limit must be a nonnegative integer")
+    rows: list[Row] = []
+    above_threshold: list[Row] = []
+    for p in loaded:
+        # Manual actions appear in their own list, apart from cadence scoring.
+        if not p.periodic_contact_reminders or p.next_action_at is not None:
             continue
-        if p.next_action_at is not None:
-            continue  # Manual actions appear in their own list, apart from cadence scoring.
         last = interactions.last_contacted(p)
         snoozed = bool(p.snooze_until and today < p.snooze_until)
         if snoozed and not include_snoozed:
@@ -90,6 +109,7 @@ def compute_rows(
                 days=days,
                 days_overdue=do,
                 score=s,
+                meets_threshold=score.in_queue(p, s, cfg),
                 path=p.path.relative_to(vault_root),
                 snoozed=snoozed,
                 location=p.location,
@@ -97,7 +117,7 @@ def compute_rows(
                 interaction_preferences=p.interaction_preferences,
             )
         )
-        if score.in_queue(p, s, cfg):
+        if rows[-1].meets_threshold:
             above_threshold.append(rows[-1])
     # Highest score first, including +inf at the very top.
     rows = sorted(
@@ -144,6 +164,7 @@ def rows_as_dicts(rows: list[Row]) -> list[dict[str, Any]]:
             "days": r.days,
             "days_overdue": r.days_overdue,
             "score": ("inf" if r.score == float("inf") else r.score),
+            "meets_threshold": r.meets_threshold,
             "path": str(r.path),
             "snoozed": r.snoozed,
             "location": r.location,
@@ -155,32 +176,19 @@ def rows_as_dicts(rows: list[Row]) -> list[dict[str, Any]]:
 
 
 def _one_shot_rows(
+    vault_root: Path,
+    loaded: Sequence[person.Person],
     *,
     today: date,
-    circle: str | None,
     circles: tuple[str, ...],
     require_action: bool,
     include_snoozed: bool = False,
     limit: int | None = None,
-    location: str | None = None,
-    relationship_tag: str | None = None,
-    interaction_preference: str | None = None,
 ) -> list[OneShotRow]:
     if limit is not None and (type(limit) is not int or limit < 0):
         raise ValueError("limit must be a nonnegative integer")
-    if circle is not None and circle not in person.CIRCLES:
-        raise ValueError("unknown circle")
-    if circle is not None and circle not in circles:
-        return []
-    vault_root = vault.get_vault_root()
     rows = []
-    for p in people.matching_people(
-        vault_root,
-        circle=circle if circle is not None else None,
-        location=location,
-        relationship_tag=relationship_tag,
-        interaction_preference=interaction_preference,
-    ):
+    for p in loaded:
         if p.circle not in circles or (require_action and p.next_action_at is None):
             continue
         snoozed = bool(p.snooze_until and today < p.snooze_until)
@@ -217,16 +225,24 @@ def compute_triage_rows(
     interaction_preference: str | None = None,
 ) -> list[OneShotRow]:
     """List people awaiting relationship classification, ordered by manual action date."""
-    return _one_shot_rows(
-        today=today,
+    root = vault.get_vault_root()
+    _, loaded = validate.load_vault(root)
+    matches = people.matching_people(
+        root,
+        loaded=loaded,
         circle=circle,
+        location=location,
+        relationship_tag=relationship_tag,
+        interaction_preference=interaction_preference,
+    )
+    return _one_shot_rows(
+        root,
+        matches,
+        today=today,
         circles=("needs-triage",),
         require_action=False,
         include_snoozed=include_snoozed,
         limit=limit,
-        location=location,
-        relationship_tag=relationship_tag,
-        interaction_preference=interaction_preference,
     )
 
 
@@ -241,16 +257,24 @@ def compute_action_rows(
     interaction_preference: str | None = None,
 ) -> list[OneShotRow]:
     """List manual one-off actions, excluding triage people shown in their own list."""
-    return _one_shot_rows(
-        today=today,
+    root = vault.get_vault_root()
+    _, loaded = validate.load_vault(root)
+    matches = people.matching_people(
+        root,
+        loaded=loaded,
         circle=circle,
+        location=location,
+        relationship_tag=relationship_tag,
+        interaction_preference=interaction_preference,
+    )
+    return _one_shot_rows(
+        root,
+        matches,
+        today=today,
         circles=tuple(circle for circle in person.CIRCLES if circle != "needs-triage"),
         require_action=True,
         include_snoozed=include_snoozed,
         limit=limit,
-        location=location,
-        relationship_tag=relationship_tag,
-        interaction_preference=interaction_preference,
     )
 
 
@@ -274,11 +298,7 @@ def _format_one_shots(rows: list[dict[str, Any]], *, empty_message: str) -> str:
     return "\n".join(
         [
             "NEXT_ACTION_AT  NAME / PATH",
-            *(
-                f"{row['next_action_at'] or '-':<14}  "
-                f"{row['name']} / {row['path']}"
-                for row in rows
-            ),
+            *(f"{row['next_action_at'] or '-':<14}  {row['name']} / {row['path']}" for row in rows),
         ]
     )
 
@@ -295,42 +315,49 @@ def queues(
     interaction_preference: str | None = None,
 ) -> dict[str, Any]:
     """Combine independent contact and event queues for CLI and MCP."""
-    contacts = compute_rows(
+    root = vault.get_vault_root()
+    cfg, loaded = validate.load_vault(root)
+    matches = people.matching_people(
+        root,
+        loaded=loaded,
+        circle=circle,
+        location=location,
+        relationship_tag=relationship_tag,
+        interaction_preference=interaction_preference,
+    )
+    contacts = _contact_rows(
+        root,
+        cfg,
+        matches,
         today=today,
         include_below_threshold=include_below_threshold,
-        circle=circle,
         include_snoozed=include_snoozed,
         limit=limit,
-        location=location,
-        relationship_tag=relationship_tag,
-        interaction_preference=interaction_preference,
     )
-    events = fam_events.upcoming(
+    events = fam_events.event_rows(
+        root,
+        matches,
         today=today,
-        circle=circle,
         include_snoozed=include_snoozed,
         limit=limit,
-        location=location,
-        relationship_tag=relationship_tag,
-        interaction_preference=interaction_preference,
     )
-    triage = compute_triage_rows(
+    triage = _one_shot_rows(
+        root,
+        matches,
         today=today,
-        circle=circle,
+        circles=("needs-triage",),
+        require_action=False,
         include_snoozed=include_snoozed,
         limit=limit,
-        location=location,
-        relationship_tag=relationship_tag,
-        interaction_preference=interaction_preference,
     )
-    actions = compute_action_rows(
+    actions = _one_shot_rows(
+        root,
+        matches,
         today=today,
-        circle=circle,
+        circles=tuple(circle for circle in person.CIRCLES if circle != "needs-triage"),
+        require_action=True,
         include_snoozed=include_snoozed,
         limit=limit,
-        location=location,
-        relationship_tag=relationship_tag,
-        interaction_preference=interaction_preference,
     )
     return {
         "contacts": rows_as_dicts(contacts),

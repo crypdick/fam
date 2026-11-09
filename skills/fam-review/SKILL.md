@@ -11,7 +11,7 @@ Help the user choose whom to prioritize, keep casual, defer, or stop pursuing, w
 
 Ground suggestions in current person notes, configured tracker and review history, and separately authorized sources. Flag uncertain identities or meeting context.
 
-Use due contacts alongside unresolved prospects and older connections, even when the due queue has entries. Respect snoozes, muted reminders, boundaries, deferrals, and bandwidth. Queue fallback suggestions may be below threshold; omit those unless requested. Vary selection using review history. Leave unanswered questions pending until their configured revisit time unless urgent.
+Use due contacts alongside unresolved prospects and older connections, even when the due queue has entries. Respect snoozes, muted reminders, boundaries, deferrals, and bandwidth. Use JSON/MCP queue rows; omit `meets_threshold: false` unless fallback suggestions are requested. Score sign alone does not establish eligibility. Vary selection using review history. Leave unanswered questions pending until their configured revisit time unless urgent.
 
 ## Save outcomes
 

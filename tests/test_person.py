@@ -68,6 +68,15 @@ def test_user_namespace_passes_through(vault_root: Path) -> None:
     assert loaded.extra["profession"] == "dev"
 
 
+def test_stored_last_contacted_is_rejected(vault_root: Path) -> None:
+    path = vault_root / "People/@Alice.md"
+    path.write_text(
+        path.read_text().replace("circle: close", "circle: close\nlast_contacted: 2099-01-01")
+    )
+    with pytest.raises(person.PersonSchemaError, match="last_contacted.*derived"):
+        person.load(path)
+
+
 def test_write_roundtrips_extra_fields(tmp_path: Path) -> None:
     src = tmp_path / "@Foo.md"
     src.write_text(

@@ -46,7 +46,10 @@ def call(args: list[str]) -> str:
     vault_name = os.environ.get("FAM_VAULT_NAME")
     if vault_name:
         cmd.append(f"vault={vault_name}")
-    result = subprocess.run(cmd, capture_output=True, check=False)
+    try:
+        result = subprocess.run(cmd, capture_output=True, check=False, timeout=30)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ObsidianCliError(f"obsidian call failed: {exc}") from exc
     if result.returncode != 0:
         stderr = result.stderr.decode(errors="replace")
         raise ObsidianCliError(stderr.strip() or f"obsidian exited {result.returncode}")
@@ -67,7 +70,7 @@ def read_text(path: Path, *, encoding: str = "utf-8") -> str:
 def resolve_case_insensitive(target: Path, vault_root: Path) -> Path | None:
     """Walk `vault_root` toward `target` matching each path component
     case-insensitively. Return the on-disk path if every component resolves
-    to exactly one match, else None.
+    to exactly one match. Return None when absent; reject ambiguous matches.
 
     Used to detect when Obsidian/Templater silently writes a requested file
     at a case-distinct path (e.g. `Wiki/People/` when caller requested
@@ -84,14 +87,12 @@ def resolve_case_insensitive(target: Path, vault_root: Path) -> Path | None:
         if not current.is_dir():
             return None
         lower = part.lower()
-        match: Path | None = None
-        for child in current.iterdir():
-            if child.name.lower() == lower:
-                match = child
-                break
-        if match is None:
+        matches = [child for child in current.iterdir() if child.name.lower() == lower]
+        if len(matches) > 1:
+            raise ObsidianCliError(f"ambiguous case-distinct path component: {current / part}")
+        if not matches:
             return None
-        current = match
+        current = matches[0]
     return current
 
 
@@ -144,22 +145,6 @@ def get_vault_root() -> Path:
 def _create_static_from_template(*, template: Path, file: Path, vault_root: Path) -> int:
     """Pass static template bytes to the existing verified, create-only writer."""
     root = vault_root.resolve()
-    for relative in (template, file):
-        if (
-            relative.is_absolute()
-            or ".." in relative.parts
-            or not (root / relative).resolve().is_relative_to(root)
-        ):
-            raise ObsidianCliError("template and destination must stay inside the selected vault")
-    if any(part.startswith(".") or part == "_sources" for part in file.parts):
-        raise ObsidianCliError("person destination cannot be hidden or a protected _sources path")
-    for depth in range(1, len(file.parts) + 1):
-        requested = root.joinpath(*file.parts[:depth])
-        actual = resolve_case_insensitive(requested, root)
-        if actual is None:
-            break
-        if actual != requested:
-            raise ObsidianCliError(f"case-distinct destination exists: {actual}; requested {file}")
     try:
         content = (root / template).read_bytes()
     except OSError as exc:
@@ -231,14 +216,37 @@ def create_from_template(
     retrying produces duplicate stubs — raise immediately with the actual
     path so the caller can surface the underlying Obsidian misconfiguration.
     """
+    root = vault_root.resolve()
+    for relative in (template, file):
+        if (
+            relative.is_absolute()
+            or ".." in relative.parts
+            or not (root / relative).resolve().is_relative_to(root)
+        ):
+            raise ObsidianCliError("template and destination must stay inside the selected vault")
+    if (
+        any(part.startswith(".") or part == "_sources" for part in file.parts)
+        or any(SYNC_CONFLICT_RE.search(part) for part in file.parts)
+        or not file.name.startswith("@")
+        or file.suffix != ".md"
+    ):
+        raise ObsidianCliError(
+            "person destination must be a live @*.md note, not hidden or protected"
+        )
+    _check_destination_case(file, root)
+    abs_target = root / file
+    # Discovery does not traverse symlink directories, even within the vault.
+    if abs_target.parent.resolve() != abs_target.parent:
+        raise ObsidianCliError("person destination cannot traverse symlink directories")
+    if abs_target.exists() or abs_target.is_symlink():
+        raise ObsidianCliError(f"person destination already exists: {file}")
     backend = os.environ.get("FAM_CREATION_BACKEND", "templater")
     if backend == "obsidian-knowledge":
-        return _create_static_from_template(template=template, file=file, vault_root=vault_root)
+        return _create_static_from_template(template=template, file=file, vault_root=root)
     if backend != "templater":
         raise ObsidianCliError(
             f"unknown FAM_CREATION_BACKEND {backend!r}; use templater or obsidian-knowledge"
         )
-    abs_target = vault_root / file
     deadline_steps = max(1, int(poll_timeout_s / poll_interval_s))
     last_err: Exception | None = None
     for attempt in range(1, max_attempts + 1):
@@ -250,38 +258,31 @@ def create_from_template(
                     f"file={file.as_posix()}",
                 ]
             )
-        except ObsidianCliError as e:
-            last_err = e
-            continue
-        for _ in range(deadline_steps):
-            actual = resolve_case_insensitive(abs_target, vault_root)
-            if actual is not None and actual != abs_target:
-                raise ObsidianCliError(
-                    f"Templater wrote {actual} but {file.as_posix()} was "
-                    f"requested (case-distinct path on a case-sensitive "
-                    f"filesystem). Aborting before retries duplicate the stub. "
-                    f"Likely cause: Obsidian's vault folder index has a "
-                    f"case-distinct entry from stale plugin metadata or a "
-                    f"prior mobile-peer session. Check .obsidian/ for paths "
-                    f"using the wrong case (github-sync-metadata.json, "
-                    f"workspace*.json) and remove or repair them."
-                )
-            if abs_target.exists():
+        except ObsidianCliError as exc:
+            last_err = exc
+        # Errors may follow a successful write. Inspect disk before any retry.
+        for step in range(deadline_steps + 1):
+            _check_destination_case(file, root)
+            if not abs_target.resolve().is_relative_to(root):
+                raise ObsidianCliError("person destination escaped the selected vault")
+            if abs_target.is_file():
                 return attempt
-            time.sleep(poll_interval_s)
-        actual = resolve_case_insensitive(abs_target, vault_root)
-        if actual is not None and actual != abs_target:
-            raise ObsidianCliError(
-                f"Templater wrote {actual} but {file.as_posix()} was "
-                f"requested (case-distinct path on a case-sensitive "
-                f"filesystem). Aborting before retries duplicate the stub. "
-                f"Likely cause: Obsidian's vault folder index has a "
-                f"case-distinct entry from stale plugin metadata or a "
-                f"prior mobile-peer session. Check .obsidian/ for paths "
-                f"using the wrong case (github-sync-metadata.json, "
-                f"workspace*.json) and remove or repair them."
-            )
+            if abs_target.exists():
+                raise ObsidianCliError(f"person destination is not a regular file: {file}")
+            if step < deadline_steps:
+                time.sleep(poll_interval_s)
     raise ObsidianCliError(
         f"templater:create-from-template did not materialize {file} after "
         f"{max_attempts} attempts (last error: {last_err})"
     )
+
+
+def _check_destination_case(file: Path, root: Path) -> None:
+    """Reject collisions even when a later destination component is absent."""
+    for depth in range(1, len(file.parts) + 1):
+        requested = root.joinpath(*file.parts[:depth])
+        actual = resolve_case_insensitive(requested, root)
+        if actual is None:
+            break
+        if actual != requested:
+            raise ObsidianCliError(f"case-distinct destination exists: {actual}; requested {file}")

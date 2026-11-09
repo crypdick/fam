@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from datetime import date, timedelta
+from datetime import date
 
 from scripts.lib.config import Config
 from scripts.lib.person import Person
@@ -15,42 +15,36 @@ def _cadence(person: Person, config: Config) -> int | None:
     return config.circles[person.circle].cadence_days
 
 
-def score(person: Person, last: date | None, today: date, config: Config) -> float:
-    circle_cfg = config.circles[person.circle]
-    if circle_cfg.cadence_days is None:
-        return float("-inf")
+def _active_cadence(person: Person, today: date, config: Config) -> int | None:
+    if config.circles[person.circle].cadence_days is None:
+        return None
     if person.snooze_until and today < person.snooze_until:
-        return float("-inf")
-    cadence = _cadence(person, config) or 0
-    if cadence <= 0:
-        return float("-inf")
+        return None
+    cadence = _cadence(person, config)
+    return cadence if cadence is not None and cadence > 0 else None
+
+
+def _days_overdue(person: Person, last: date | None, today: date, cadence: int) -> int | None:
     if person.next_action_at is not None:
-        anchor = person.next_action_at
-    elif last is not None:
-        anchor = last + timedelta(days=cadence)
-    else:
-        return float("inf")
-    days = (today - anchor).days
-    return days / cadence
+        return (today - person.next_action_at).days
+    if last is not None:
+        # Difference arithmetic works even when last + cadence exceeds date.max.
+        return (today - last).days - cadence
+    return None
+
+
+def score(person: Person, last: date | None, today: date, config: Config) -> float:
+    cadence = _active_cadence(person, today, config)
+    if cadence is None:
+        return float("-inf")
+    days = _days_overdue(person, last, today, cadence)
+    return float("inf") if days is None else days / cadence
 
 
 def days_overdue(person: Person, last: date | None, today: date, config: Config) -> int | None:
-    """Days past the anchor (negative when not yet due). None for passive/snoozed/never."""
-    circle_cfg = config.circles[person.circle]
-    if circle_cfg.cadence_days is None:
-        return None
-    if person.snooze_until and today < person.snooze_until:
-        return None
-    if person.next_action_at is not None:
-        anchor = person.next_action_at
-    elif last is not None:
-        cadence = _cadence(person, config)
-        if cadence is None or cadence <= 0:
-            return None
-        anchor = last + timedelta(days=cadence)
-    else:
-        return None
-    return (today - anchor).days
+    """Days past the anchor (negative when not yet due). None for inactive/snoozed/never."""
+    cadence = _active_cadence(person, today, config)
+    return None if cadence is None else _days_overdue(person, last, today, cadence)
 
 
 def in_queue(person: Person, score: float, config: Config) -> bool:

@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import calendar
+from collections.abc import Sequence
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Any
 
-from scripts.lib import people, validate, vault
+from scripts.lib import people, person, validate, vault
 
 
 def upcoming(
@@ -21,6 +23,36 @@ def upcoming(
     interaction_preference: str | None = None,
 ) -> list[dict[str, Any]]:
     """Return next occurrences whose reminder window starts by today + days."""
+    root = vault.get_vault_root()
+    _, loaded = validate.load_vault(root)
+    matches = people.matching_people(
+        root,
+        loaded=loaded,
+        circle=circle,
+        location=location,
+        relationship_tag=relationship_tag,
+        interaction_preference=interaction_preference,
+    )
+    return event_rows(
+        root,
+        matches,
+        today=today,
+        days=days,
+        include_snoozed=include_snoozed,
+        limit=limit,
+    )
+
+
+def event_rows(
+    root: Path,
+    loaded: Sequence[person.Person],
+    *,
+    today: date,
+    days: int = 0,
+    include_snoozed: bool = False,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    """Project event reminders from validated, filtered people without I/O."""
     if type(days) is not int or days < 0:
         raise ValueError("days must be a nonnegative integer")
     if limit is not None and (type(limit) is not int or limit < 0):
@@ -28,18 +60,8 @@ def upcoming(
     if days > (date.max - today).days:
         raise ValueError("days exceeds the supported date range")
     horizon = today + timedelta(days=days)
-    root = vault.get_vault_root()
-    report = validate.preflight(root)
-    if not report.ok:
-        raise validate.ValidationError("preflight failed:\n  " + "\n  ".join(report.errors))
     rows = []
-    for p in people.matching_people(
-        root,
-        circle=circle,
-        location=location,
-        relationship_tag=relationship_tag,
-        interaction_preference=interaction_preference,
-    ):
+    for p in loaded:
         snoozed = bool(p.snooze_until and today < p.snooze_until)
         if snoozed and not include_snoozed:
             continue

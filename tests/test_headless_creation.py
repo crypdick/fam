@@ -58,7 +58,7 @@ def test_headless_writer_refuses_existing_target(headless, writer: Path, tmp_pat
     (tmp_path / "template.md").write_text("---\ncircle: needs-triage\n---\n")
     target = tmp_path / "@Existing.md"
     target.write_text("existing user content\n")
-    with pytest.raises(vault.ObsidianCliError, match="FileExistsError"):
+    with pytest.raises(vault.ObsidianCliError, match="already exists"):
         vault.create_from_template(
             template=Path("template.md"), file=Path(target.name), vault_root=tmp_path
         )

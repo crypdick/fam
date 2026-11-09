@@ -112,12 +112,10 @@ def test_today_surfaces_triage_people_separately(mock_root, vault_root: Path) ->
 def test_today_triage_respects_circle_filter_limit_and_snooze(mock_root, vault_root: Path) -> None:
     mock_root.return_value = vault_root
     (vault_root / "People" / "@Needs Action.md").write_text(
-        "---\ncircle: needs-triage\nnext_action_at: 2026-05-14\n---\n"
-        "\n## Logged contacts\n"
+        "---\ncircle: needs-triage\nnext_action_at: 2026-05-14\n---\n\n## Logged contacts\n"
     )
     (vault_root / "People" / "@Snoozed.md").write_text(
-        "---\ncircle: needs-triage\nsnooze_until: 2026-06-01\n---\n"
-        "\n## Logged contacts\n"
+        "---\ncircle: needs-triage\nsnooze_until: 2026-06-01\n---\n\n## Logged contacts\n"
     )
     from scripts import fam_today
 
@@ -130,16 +128,13 @@ def test_today_triage_respects_circle_filter_limit_and_snooze(mock_root, vault_r
 def test_today_surfaces_manual_actions_separately(mock_root, vault_root: Path) -> None:
     mock_root.return_value = vault_root
     (vault_root / "People" / "@Passive Action.md").write_text(
-        "---\ncircle: passive\nnext_action_at: 2026-05-14\n---\n"
-        "\n## Logged contacts\n"
+        "---\ncircle: passive\nnext_action_at: 2026-05-14\n---\n\n## Logged contacts\n"
     )
     (vault_root / "People" / "@Reference Action.md").write_text(
-        "---\ncircle: reference\nnext_action_at: 2026-05-16\n---\n"
-        "\n## Logged contacts\n"
+        "---\ncircle: reference\nnext_action_at: 2026-05-16\n---\n\n## Logged contacts\n"
     )
     (vault_root / "People" / "@Active Action.md").write_text(
-        "---\ncircle: close\nnext_action_at: 2026-05-15\n---\n"
-        "\n## Logged contacts\n"
+        "---\ncircle: close\nnext_action_at: 2026-05-15\n---\n\n## Logged contacts\n"
     )
     from scripts import fam_today
 
@@ -340,3 +335,66 @@ def test_today_explains_empty_table(vault_root: Path, monkeypatch, capsys):
     monkeypatch.setenv("OBSIDIAN_VAULT_PATH", str(vault_root))
     assert main(["today", "--circle", "passive"]) == 0
     assert "No eligible contacts match this queue" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "threshold,last,expected_score,meets_threshold",
+    [
+        (0.5, "2026-04-09", 0.2, False),
+        (0.1, "2026-04-09", 0.2, True),
+        (-0.5, "2026-04-21", -0.2, True),
+        (-0.1, "2026-04-21", -0.2, False),
+    ],
+)
+def test_queue_exposes_threshold_decision(
+    vault_root, monkeypatch, threshold, last, expected_score, meets_threshold
+):
+    from scripts import fam_today
+
+    monkeypatch.setenv("OBSIDIAN_VAULT_PATH", str(vault_root))
+    config_path = vault_root / "fam-circles.md"
+    text = config_path.read_text()
+    config_path.write_text(text.replace("alert_threshold: 0.0", f"alert_threshold: {threshold}"))
+    (vault_root / "People/@Alice.md").write_text(
+        f"---\ncircle: close\n---\n## Logged contacts\n- {last} — call\n"
+    )
+    result = fam_today.queues(today=date(2026, 5, 15), circle="close")
+    assert len(result["contacts"]) == 1
+    row = result["contacts"][0]
+    assert row["score"] == pytest.approx(expected_score)
+    assert row["meets_threshold"] is meets_threshold
+
+
+def test_combined_queues_load_each_person_and_configuration_once(vault_root, monkeypatch):
+    from scripts import fam_today
+    from scripts.lib import config, person, validate, vault
+
+    monkeypatch.setenv("OBSIDIAN_VAULT_PATH", str(vault_root))
+    with (
+        patch.object(vault, "get_vault_root", wraps=vault.get_vault_root) as roots,
+        patch.object(validate, "load_vault", wraps=validate.load_vault) as snapshots,
+        patch.object(person, "load", wraps=person.load) as notes,
+        patch.object(config, "load", wraps=config.load) as configs,
+    ):
+        fam_today.queues(today=date(2026, 5, 15))
+    assert roots.call_count == snapshots.call_count == configs.call_count == 1
+    assert notes.call_count == len(person.discover(vault_root))
+
+
+@pytest.mark.parametrize("operation", ["compute_action_rows", "compute_triage_rows"])
+@pytest.mark.parametrize("invalid", ["configuration", "contacts"])
+def test_standalone_one_shot_queues_validate_before_filtering(
+    vault_root, monkeypatch, operation, invalid
+):
+    from scripts import fam_today
+    from scripts.lib import validate
+
+    monkeypatch.setenv("OBSIDIAN_VAULT_PATH", str(vault_root))
+    if invalid == "configuration":
+        (vault_root / "fam-circles.md").write_text("invalid configuration")
+    else:
+        (vault_root / "People/@Alice.md").write_text(
+            "---\ncircle: close\n---\n## Logged contacts\n- not a contact date\n"
+        )
+    with pytest.raises(validate.ValidationError, match="preflight failed"):
+        getattr(fam_today, operation)(today=date(2026, 5, 15), circle="passive")

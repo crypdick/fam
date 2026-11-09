@@ -15,21 +15,9 @@ from starlette.responses import PlainTextResponse
 
 from scripts import fam_events, fam_tend, fam_today
 from scripts.lib import people, validate, vault
+from scripts.lib.people import OptionalField
+from scripts.lib.person import Circle
 
-Circle = Literal[
-    "reference", "passive", "needs-triage", "inner", "close", "orbit", "distant"
-]
-OptionalField = Literal[
-    "cadence_days_override",
-    "snooze_until",
-    "next_action_at",
-    "periodic_contact_reminders",
-    "contact_channels_ordered_preference",
-    "location",
-    "relationship_tags",
-    "interaction_preferences",
-    "important_events",
-]
 Limit = Annotated[int, Field(ge=0)]
 Cadence = Annotated[int, Field(gt=0)]
 
@@ -79,7 +67,8 @@ def create_server(*, token: str | None = None) -> FastMCP:
         include_snoozed includes snoozed entries in every list. Metadata filters apply
         to every list; limit caps each independently. include_below_threshold affects
         contacts only. If no contact meets its threshold, suggests up to 10 eligible
-        people by default; limit overrides that count.
+        people by default; limit overrides that count. Contact rows include
+        meets_threshold; false identifies suggestions, regardless of score sign.
         """
         return fam_today.queues(
             today=on_date or date.today(),
@@ -127,7 +116,7 @@ def create_server(*, token: str | None = None) -> FastMCP:
 
     @server.tool(annotations=mutating)
     def ensure_person(person_name: str, dry_run: bool = False) -> dict[str, Any]:
-        """Create one named person through Templater if missing; never scan mentions.
+        """Create one named person using configured backend if missing; never scan mentions.
 
         dry_run previews creation. Inspect failed even when other fields indicate success.
         """
