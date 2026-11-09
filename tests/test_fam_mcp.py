@@ -48,6 +48,7 @@ def test_mcp_queue_validation_and_person_reads(vault_root: Path, monkeypatch):
                     "days": None,
                     "days_overdue": None,
                     "score": "inf",
+                    "meets_threshold": True,
                     "path": "People/@Dan.md",
                     "snoozed": False,
                     "location": None,
@@ -90,6 +91,23 @@ def test_mcp_queue_falls_back_below_threshold(vault_root: Path, monkeypatch):
             assert [row["name"] for row in queue.data["contacts"]] == ["Alice"]
             assert queue.data["contacts"][0]["score"] == pytest.approx(-7 / 30)
             assert queue.data["contacts"][0]["days_overdue"] == -7
+            assert queue.data["contacts"][0]["meets_threshold"] is False
+
+    asyncio.run(check())
+
+
+def test_mcp_editable_fields_match_shared_operations():
+    from scripts.lib import people, person
+
+    async def check():
+        async with Client(create_server()) as client:
+            tools = {tool.name: tool for tool in await client.list_tools()}
+            update = tools["update_person"].input_schema["properties"]
+            assert set(update) - {"path", "clear"} == set(people.EDITABLE_FIELDS)
+            assert set(update["clear"]["anyOf"][0]["items"]["enum"]) == set(people.OPTIONAL_FIELDS)
+            for name in ("today", "list_people", "update_person"):
+                circle = tools[name].input_schema["properties"]["circle"]
+                assert set(circle["anyOf"][0]["enum"]) == set(person.CIRCLES)
 
     asyncio.run(check())
 

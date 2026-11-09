@@ -99,7 +99,8 @@ The example template starts new people in `needs-triage`. Queue reads never
 repair notes. For a missing circle, use
 `fam person update "path/to/@Name.md" --circle needs-triage`; this records an
 unclassified status without guessing contact intent. This permits only that
-target's missing-circle repair; other validation errors still stop writes.
+target's missing-circle repair; other errors in that note still stop writes.
+Unrelated invalid notes do not block a targeted repair.
 
 ### Contact history
 
@@ -112,7 +113,11 @@ Log contacts under the exact `## Logged contacts` heading:
 
 `last_contacted` is the most recent valid date in this section. fam never stores
 it in frontmatter. Other sections, backlinks, and frontmatter dates don't feed
-the calculation directly. Malformed contact bullets fail validation.
+the calculation directly. Stored `last_contacted` frontmatter is rejected;
+check the history before removing a stale field. Duplicate real contact sections
+and malformed contact bullets fail validation. Contact bullets use `- `, an ISO
+date, a dash separator, and a nonempty description; tabs and extra whitespace
+around these parts are accepted.
 
 Log a contact only when the user reports it or the agent has evidence of an
 actual interaction. A dated note or backlink mentioning someone is not contact
@@ -167,6 +172,9 @@ always sorts by score; `--sort name` is not supported with `--today`.
 Circles without a cadence stay out of the recurring contact queue. `fam today`
 also excludes snoozed people by default. A `next_action_at` date appears in the
 separate one-off `actions` list, so it is never hidden by cadence thresholds.
+`next_action_at` temporarily replaces recurring cadence: while set, the person
+does not appear in `contacts`, even when the action is in the future. Clearing
+the action restores cadence eligibility based on logged contact history.
 `needs-triage` appears in the triage list. People with
 `periodic_contact_reminders: false` stay out of the recurring contact queue;
 their explicit one-off actions remain visible.
@@ -186,6 +194,9 @@ A score of `0` means due today; `1` means one full cadence overdue. For a 30-day
 The queue includes scores at or above the circle's alert threshold. If nobody
 meets their threshold, it returns up to 10 highest-ranked eligible people
 below threshold by default; `--limit N` overrides that count.
+Each JSON/MCP contact row includes `meets_threshold`: `false` identifies a
+fallback or an explicitly requested below-threshold row. Score sign alone
+does not establish threshold eligibility.
 Snoozes, reminder settings, inactive circles, and requested
 filters still apply. It sorts by descending score, then oldest contact date.
 Table output includes days
@@ -305,6 +316,15 @@ Both creation commands accept `--dry-run` and return JSON with `created`,
 exit status, even with partial successes. Tending leaves existing notes and
 indexes unchanged and needs no follow-up housekeeping.
 
+Both backends refuse hidden/conflict destinations, paths escaping the vault,
+symlinked destination directories, existing targets, and ambiguous case-insensitive
+paths. A successful creation
+must materialize a regular, discoverable person note with valid frontmatter,
+configured circle, and valid contact history. Each desktop CLI call is bounded
+to 30 seconds; after errors, fam checks for a materialized note before retrying.
+Invalid materialized notes remain on disk and are reported in `failed`;
+other valid creations in the batch can still succeed.
+
 ### Contact logging
 
 ```shell
@@ -356,9 +376,13 @@ with file tools; reviews and intake remain agent workflows.
 `fam validate` checks configuration, every person's frontmatter, and logged
 contact bullets. It returns a nonzero exit status for errors.
 
-Mutating scripts use `scripts/lib/validate.py` to validate the whole vault
-before and after writes. Explicit circle updates permit only the selected
-note's missing-circle repair during preflight. Other invalid notes stop writes.
+Mutating scripts use `scripts/lib/validate.py` to validate configuration and
+the affected notes before and after writes. Creation validates each materialized
+person directly. Explicit circle updates permit the selected note's missing-circle
+repair during preflight; its other errors still block the write. Unrelated invalid
+notes do not block local updates or creation. Successful mutation does not certify
+whole-vault health: use `fam validate` for that check. Queue reads validate and
+load the whole population once per invocation, then project all queues from it.
 Validation failures name the affected note or configuration field. Failed template creation also
 produces a nonzero exit status.
 

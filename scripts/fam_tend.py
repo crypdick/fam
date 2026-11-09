@@ -100,10 +100,16 @@ def _create_missing_stubs(
             attempts = vault.create_from_template(
                 template=template, file=target, vault_root=vault_root
             )
+            materialized = vault_root / target
+            if not materialized.is_file():
+                raise vault.ObsidianCliError(f"creation did not materialize {target}")
+            report = validate.preflight(vault_root, targets=[materialized])
+            if not report.ok:
+                raise vault.ObsidianCliError("; ".join(report.errors))
             created.append(name)
             if attempts > 1:
                 retried.append(name)
-        except vault.ObsidianCliError as e:
+        except (vault.ObsidianCliError, OSError) as e:
             failed.append(f"{name}: {e}")
     return StubResult(created=created, retried=retried, failed=failed)
 
@@ -115,6 +121,6 @@ def tend(*, person_name: str | None = None, dry_run: bool = False) -> StubResult
             raise config_mod.ConfigError("name must be a person name, not a path or wikilink")
         person_name = f"@{name}"
     vault_root = vault.get_vault_root()
-    with validate.guard(vault_root):
+    with validate.guard(vault_root, targets=[]):
         cfg = config_mod.load(vault_root)
         return _create_missing_stubs(vault_root, cfg, person_name=person_name, dry_run=dry_run)

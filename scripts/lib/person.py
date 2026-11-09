@@ -10,14 +10,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, get_args
 
 import frontmatter
 import yaml
 
 from . import vault as vault_mod
 
-CIRCLES = ("reference", "passive", "needs-triage", "inner", "close", "orbit", "distant")
+Circle = Literal["reference", "passive", "needs-triage", "inner", "close", "orbit", "distant"]
+CIRCLES: tuple[str, ...] = get_args(Circle)
 
 
 class PersonSchemaError(RuntimeError):
@@ -135,11 +136,16 @@ def with_updates(path: Path, updates: dict[str, Any]) -> Person:
 
 def _load_post(path: Path, post: frontmatter.Post) -> Person:
     fm = dict(post.metadata)
+    if "last_contacted" in fm:
+        raise PersonSchemaError(
+            f"{path}: `last_contacted` is derived from Logged contacts; "
+            "remove the frontmatter field after checking the contact history"
+        )
     name = path.stem.lstrip("@")
     circle = fm.pop("circle", None)
     if circle is None:
         raise PersonSchemaError(f"{path}: missing required field `circle`")
-    if circle not in CIRCLES:
+    if not isinstance(circle, str) or circle not in CIRCLES:
         raise PersonSchemaError(f"{path}: unknown circle {circle!r}; valid: {', '.join(CIRCLES)}")
     cadence_override = fm.pop("cadence_days_override", None)
     if cadence_override is not None:

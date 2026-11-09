@@ -271,11 +271,11 @@ def test_missing_circle_requires_explicit_targeted_repair(vault_root: Path, caps
     assert run("validate") == 0
 
 
-def test_mutations_stop_on_other_invalid_notes(vault_root: Path):
+def test_mutations_ignore_other_invalid_notes(vault_root: Path):
     (vault_root / "People/@Invalid.md").write_text("---\ncircle: nonsense\n---\n")
     path = vault_root / "People/@Alice.md"
-    before = path.read_bytes()
-    assert run("person", "update", "People/@Alice.md", "--circle", "inner") == 1
+    invalid_before = (vault_root / "People/@Invalid.md").read_bytes()
+    assert run("person", "update", "People/@Alice.md", "--circle", "inner") == 0
     assert (
         run(
             "person",
@@ -286,9 +286,12 @@ def test_mutations_stop_on_other_invalid_notes(vault_root: Path):
             "--description",
             "Coffee",
         )
-        == 1
+        == 0
     )
-    assert path.read_bytes() == before
+    assert person.load(path).circle == "inner"
+    assert interactions.last_contacted(person.load(path)) == date(2026, 5, 15)
+    assert (vault_root / "People/@Invalid.md").read_bytes() == invalid_before
+    assert run("validate") == 1
 
 
 @pytest.mark.parametrize(
@@ -357,12 +360,27 @@ def test_ensure_and_tend_preview(vault_root: Path, capsys):
     assert {p: p.read_bytes() for p in vault_root.rglob("*.md")} == before
 
 
-def test_circle_repair_does_not_ignore_other_missing_circles(vault_root: Path):
+def test_missing_circles_can_be_repaired_independently(vault_root: Path):
     for name in ("Carol", "Dan"):
         (vault_root / f"People/@{name}.md").write_text("---\nprofession: dev\n---\n")
-    before = {p: p.read_bytes() for p in vault_root.rglob("*.md")}
-    assert run("person", "update", "People/@Carol.md", "--circle", "reference") == 1
-    assert {p: p.read_bytes() for p in vault_root.rglob("*.md")} == before
+    dan = vault_root / "People/@Dan.md"
+    before = dan.read_bytes()
+    assert run("person", "update", "People/@Carol.md", "--circle", "needs-triage") == 0
+    assert dan.read_bytes() == before
+    assert run("validate") == 1
+    assert run("person", "update", "People/@Dan.md", "--circle", "needs-triage") == 0
+    assert run("validate") == 0
+
+
+def test_stale_derived_field_blocks_target_write_without_data_loss(vault_root: Path):
+    path = vault_root / "People/@Alice.md"
+    path.write_text(
+        path.read_text().replace("circle: close", "circle: close\nlast_contacted: 2099-01-01")
+    )
+    before = path.read_bytes()
+    assert run("person", "update", "People/@Alice.md", "--circle", "inner") == 1
+    assert path.read_bytes() == before
+    assert run("validate") == 1
 
 
 def test_unconfigured_circle_is_rejected_before_writing(vault_root: Path):
